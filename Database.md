@@ -11,7 +11,7 @@ The database stores:
 * TV series
 * Seasons
 * Episodes
-* Favorites
+* Watchlists
 * Watch history
 * Movie awards
 * TV series awards
@@ -34,31 +34,45 @@ The database stores:
 
 ```text
 auth.users
+
     │
+
     └── profiles
+
           │
+
           └── User Profile
 
 movies
+
     │
+
     ├── movie_awards
-    │
-    ├── favorites
-    │
+
+    ├── watchlists
+
     └── watch_history
+
             │
+
             └── User
 
 tv_shows
+
     │
+
     ├── seasons
+
     │     │
+
     │     └── episodes
+
     │
+
     ├── tv_show_awards
-    │
-    ├── favorites
-    │
+
+    ├── watchlists
+
     └── watch_history
 ```
 
@@ -66,36 +80,47 @@ tv_shows
 
 ```text
 profiles
+
     1 ───── 1 auth.users
 
 movies
+
     1 ───── N movie_awards
 
 tv_shows
+
     1 ───── N tv_show_awards
 
 tv_shows
+
     1 ───── N seasons
 
 seasons
+
     1 ───── N episodes
 
 auth.users
-    1 ───── N favorites
+
+    1 ───── N watchlists
 
 auth.users
+
     1 ───── N watch_history
 
 movies
-    1 ───── N favorites
+
+    1 ───── N watchlists
 
 tv_shows
-    1 ───── N favorites
+
+    1 ───── N watchlists
 
 movies
+
     1 ───── N watch_history
 
 episodes
+
     1 ───── N watch_history
 ```
 
@@ -134,9 +159,13 @@ profiles.profile_id
 
 ```text
 auth.users
+
     │
+
     │ 1 : 1
+
     ▼
+
 profiles
 ```
 
@@ -255,16 +284,18 @@ seasons.tv_id
 
 ```text
 TV Series
+
     │
+
     ├── Season 1
     │     ├── Episode 1
     │     ├── Episode 2
     │     └── ...
-    │
+
     ├── Season 2
     │     ├── Episode 1
     │     └── ...
-    │
+
     └── ...
 ```
 
@@ -301,38 +332,40 @@ episodes.season_id
 
 ---
 
-# 8. `favorites`
+# 8. `watchlists`
 
 Stores movies or TV series saved by users.
 
 ## Columns
 
-| Column        | Type        | Constraints                     | Description                   |
-| ------------- | ----------- | ------------------------------- | ----------------------------- |
-| `favorite_id` | UUID        | PK, DEFAULT `gen_random_uuid()` | Favorite record ID            |
-| `user_id`     | UUID        | NOT NULL, FK                    | User who created the favorite |
-| `movie_id`    | UUID        | FK, nullable                    | Favorite movie                |
-| `tv_id`       | UUID        | FK, nullable                    | Favorite TV series            |
-| `created_at`  | TIMESTAMPTZ | NOT NULL, DEFAULT `now()`       | Creation time                 |
+| Column         | Type        | Constraints                     | Description                    |
+| -------------- | ----------- | ------------------------------- | ------------------------------ |
+| `watchlist_id` | UUID        | PK, DEFAULT `gen_random_uuid()` | Watchlist record ID            |
+| `user_id`      | UUID        | NOT NULL, FK                    | User who created the watchlist |
+| `movie_id`     | UUID        | FK, nullable                    | Watchlist movie                |
+| `tv_id`        | UUID        | FK, nullable                    | Watchlist TV series            |
+| `created_at`   | TIMESTAMPTZ | NOT NULL, DEFAULT `now()`       | Creation time                  |
 
 ## Foreign Keys
 
 ```text
-favorites.user_id
+watchlists.user_id
     → auth.users.id
 
-favorites.movie_id
+watchlists.movie_id
     → movies.movie_id
 
-favorites.tv_id
+watchlists.tv_id
     → tv_shows.tv_id
 ```
 
-A favorite can reference either:
+A watchlist can reference either:
 
 ```text
 Movie
+
 OR
+
 TV Series
 ```
 
@@ -417,13 +450,19 @@ movie_awards.movie_id
 
 ```text
 Oppenheimer
+
     │
+
     ├── Academy Awards
+
     │     ├── Best Picture
     │     ├── Best Director
     │     └── Best Actor
+
     │
+
     └── Golden Globes
+
           └── Best Director
 ```
 
@@ -456,8 +495,11 @@ tv_show_awards.tv_id
 
 ```text
 Breaking Bad
+
     │
+
     └── Primetime Emmy Awards
+
           ├── Outstanding Drama Series
           └── Outstanding Lead Actor
 ```
@@ -470,18 +512,30 @@ Zeflix separates Movies and TV Series at the database level.
 
 ```text
                          Content
+
                             │
-                ┌───────────┴───────────┐
-                │                       │
-              Movie                 TV Series
-                │                       │
-            movies                  tv_shows
-                │                       │
-        movie_awards               seasons
-                                        │
-                                    episodes
-                                        │
-                                tv_show_awards
+
+               ┌────────────┴────────────┐
+
+               │                         │
+
+             Movie                  TV Series
+
+               │                         │
+
+            movies                   tv_shows
+
+               │                         │
+
+        movie_awards                seasons
+
+                                         │
+
+                                      episodes
+
+                                         │
+
+                                  tv_show_awards
 ```
 
 ---
@@ -494,18 +548,31 @@ The following fields primarily originate from TMDB:
 
 ```text
 tmdb_id
+
 title / name
+
 original_title / original_name
+
 overview
+
 poster_path
+
 backdrop_path
+
 release_date / first_air_date
+
 last_air_date
+
 vote_average
+
 vote_count
+
 runtime
+
 number_of_seasons
+
 number_of_episodes
+
 original_language
 ```
 
@@ -515,9 +582,13 @@ The following data is managed by Zeflix:
 
 ```text
 profiles
-favorites
+
+watchlists
+
 watch_history
+
 movie_awards
+
 tv_show_awards
 ```
 
@@ -527,8 +598,11 @@ Use internal Zeflix IDs for database relationships:
 
 ```text
 movies.movie_id
+
 tv_shows.tv_id
+
 seasons.season_id
+
 episodes.episode_id
 ```
 
@@ -536,8 +610,11 @@ Use TMDB IDs only for integration with TMDB:
 
 ```text
 movies.tmdb_id
+
 tv_shows.tmdb_id
+
 seasons.tmdb_id
+
 episodes.tmdb_id
 ```
 
@@ -545,12 +622,17 @@ Example:
 
 ```text
 Zeflix
+
 movie_id = UUID-A
+
         │
+
         └── tmdb_id = 872585
 
 movie_awards.movie_id
+
         │
+
         └── UUID-A
 ```
 
@@ -567,7 +649,7 @@ Do not use `tmdb_id` as the internal foreign key when a Zeflix primary key is av
 | `tv_shows`       | TV series metadata       | TMDB              |
 | `seasons`        | TV seasons               | `tv_shows`        |
 | `episodes`       | TV episodes              | `seasons`         |
-| `favorites`      | Saved movies / TV series | Users + Content   |
+| `watchlists`     | Saved movies / TV series | Users + Content   |
 | `watch_history`  | Playback progress        | Users + Content   |
 | `movie_awards`   | Movie awards             | `movies`          |
 | `tv_show_awards` | TV series awards         | `tv_shows`        |
@@ -575,24 +657,43 @@ Do not use `tmdb_id` as the internal foreign key when a Zeflix primary key is av
 ## Core Relationship Diagram
 
 ```text
-                         auth.users
-                              │
-                              │
+                        auth.users
+
+                             │
+
+                             │
+
                          profiles
-                              │
-              ┌───────────────┴───────────────┐
-              │                               │
-          favorites                      watch_history
-              │                               │
-        ┌─────┴─────┐                   ┌─────┴─────┐
-        │           │                   │           │
-      movies     tv_shows             movies     episodes
-        │           │                               │
-        │           ├──────────────┐                │
-        │           │              │                │
-        │         seasons      tv_show_awards       │
-        │           │                               │
-        │        episodes ◄─────────────────────────┘
-        │
+
+                             │
+
+             ┌───────────────┴───────────────┐
+
+             │                               │
+
+         watchlists                    watch_history
+
+             │                               │
+
+       ┌─────┴─────┐                   ┌─────┴─────┐
+
+       │           │                   │           │
+
+    movies     tv_shows             movies      episodes
+
+       │           │                               │
+
+       │           ├──────────────┐                │
+
+       │           │              │                │
+
+       │        seasons      tv_show_awards         │
+
+       │           │                               │
+
+       │        episodes ◄─────────────────────────┘
+
+       │
+
    movie_awards
 ```

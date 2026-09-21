@@ -12,7 +12,8 @@ import {
   Moon,
   User,
   SquarePen,
-  Heart,
+  Bookmark,
+  History,
   Download,
   Settings,
   LogOut,
@@ -35,8 +36,7 @@ const navItems: NavItem[] = [
   { name: "Home", href: "/" },
   { name: "Discover", href: "/discover" },
   { name: "New release", href: "/new-release" },
-  { name: "Forum", href: "/forum" },
-  { name: "About", href: "/about" },
+  { name: "About Us", href: "/about" },
 ];
 
 export default function Header() {
@@ -46,13 +46,9 @@ export default function Header() {
     useAuthStore();
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
   const [isDark, setIsDark] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
 
-  const searchContainerRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Sync profile & session details using API
@@ -125,15 +121,6 @@ export default function Header() {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
-        searchContainerRef.current &&
-        !searchContainerRef.current.contains(event.target as Node)
-      ) {
-        if (!searchQuery) {
-          setIsSearchOpen(false);
-        }
-      }
-
-      if (
         profileMenuRef.current &&
         !profileMenuRef.current.contains(event.target as Node)
       ) {
@@ -143,7 +130,6 @@ export default function Header() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsSearchOpen(false);
         setIsProfileOpen(false);
       }
     };
@@ -154,7 +140,7 @@ export default function Header() {
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [searchQuery]);
+  }, []);
 
   const toggleTheme = () => {
     if (isDark) {
@@ -166,15 +152,6 @@ export default function Header() {
       localStorage.setItem("theme", "dark");
       setIsDark(true);
     }
-  };
-
-  const handleSearchToggle = () => {
-    setIsSearchOpen((prev) => {
-      if (!prev) {
-        setTimeout(() => searchInputRef.current?.focus(), 150);
-      }
-      return !prev;
-    });
   };
 
   const handleLogout = async () => {
@@ -229,10 +206,7 @@ export default function Header() {
             />
           </div>
           <span
-            className={`text-2xl sm:text-[28px] font-bold tracking-wider text-white select-none leading-none shrink-0 whitespace-nowrap transition-all duration-300 ease-out ${isSearchOpen
-              ? "max-w-0 opacity-0 ml-0 overflow-hidden sm:max-w-[140px] sm:opacity-100 sm:ml-2.5 sm:overflow-visible"
-              : "max-w-[140px] opacity-100 ml-2.5 sm:ml-3 overflow-visible"
-              }`}
+            className="text-2xl sm:text-[28px] font-bold tracking-wider text-white select-none leading-none shrink-0 whitespace-nowrap ml-2.5 sm:ml-3"
             style={{ fontFamily: "'MyFont', sans-serif" }}
           >
             ZEFLIX
@@ -272,57 +246,18 @@ export default function Header() {
           className="flex items-center justify-end gap-2 sm:gap-3.5 flex-1 md:flex-initial shrink-0"
           style={{ fontFamily: "'MyFont1', sans-serif" }}
         >
-          {/* Smooth Animated Search Bar */}
-          <div
-            ref={searchContainerRef}
-            className={`relative flex items-center h-9 transition-all duration-300 ease-out overflow-hidden ${isSearchOpen
-              ? "flex-1 max-w-[280px] sm:max-w-none sm:w-64 sm:flex-initial bg-[#151821]/95 border border-white/20 shadow-[0_4px_20px_rgba(0,0,0,0.5)] rounded-full px-2.5 backdrop-blur-md"
-              : "w-9 flex-none bg-transparent border border-transparent rounded-full px-0 justify-center"
-              }`}
-          >
-            <button
-              type="button"
-              onClick={handleSearchToggle}
-              className={`w-9 h-9 rounded-full transition-all duration-200 cursor-pointer flex items-center justify-center shrink-0 ${isSearchOpen
-                ? "w-7 h-7 text-zinc-400 hover:text-white"
+          {/* Direct Search Link */}
+          <Link
+            href="/search"
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 cursor-pointer shrink-0 ${
+              pathname === "/search"
+                ? "text-emerald-400 bg-white/10"
                 : "text-zinc-300 hover:text-white hover:bg-white/10"
-                }`}
-              aria-label="Search"
-            >
-              <Search className="w-4.5 h-4.5 stroke-[2.2] transition-transform duration-300 hover:scale-110" />
-            </button>
-
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search movies..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className={`bg-transparent text-sm text-white focus:outline-none placeholder:text-zinc-500 font-sans h-full transition-all duration-300 leading-none min-w-0 ${isSearchOpen
-                ? "w-full opacity-100 ml-1.5 pr-1"
-                : "w-0 max-w-0 opacity-0 pointer-events-none p-0 border-0 ml-0 overflow-hidden"
-                }`}
-            />
-
-            <button
-              type="button"
-              onClick={() => {
-                if (searchQuery) {
-                  setSearchQuery("");
-                  searchInputRef.current?.focus();
-                } else {
-                  setIsSearchOpen(false);
-                }
-              }}
-              className={`h-6 flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 rounded-full transition-all duration-200 shrink-0 cursor-pointer ${isSearchOpen
-                ? "w-6 opacity-100 scale-100 pointer-events-auto"
-                : "w-0 max-w-0 min-w-0 opacity-0 scale-75 pointer-events-none p-0 overflow-hidden"
-                }`}
-              aria-label="Clear or close search"
-            >
-              <X className="w-3.5 h-3.5 shrink-0" />
-            </button>
-          </div>
+            }`}
+            aria-label="Search"
+          >
+            <Search className="w-5 h-5 stroke-[2.2] transition-transform duration-200 hover:scale-110" />
+          </Link>
 
           {/* Login or User Avatar with Profile Dropdown */}
           {user_id ? (
@@ -399,12 +334,21 @@ export default function Header() {
                   </Link>
 
                   <Link
-                    href="/favorites"
+                    href="/watchlist"
                     onClick={() => setIsProfileOpen(false)}
                     className="flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[14px] font-medium text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-all duration-150 group"
                   >
-                    <Heart className="w-5 h-5 text-zinc-400 group-hover:text-white transition-colors shrink-0 stroke-[2]" />
-                    <span>Favorites</span>
+                    <Bookmark className="w-5 h-5 text-zinc-400 group-hover:text-white transition-colors shrink-0 stroke-[2]" />
+                    <span>Watchlist</span>
+                  </Link>
+
+                  <Link
+                    href="/history"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[14px] font-medium text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-all duration-150 group"
+                  >
+                    <History className="w-5 h-5 text-zinc-400 group-hover:text-white transition-colors shrink-0 stroke-[2]" />
+                    <span>History</span>
                   </Link>
 
                   <Link
@@ -600,12 +544,20 @@ export default function Header() {
                     <span>Edit account</span>
                   </Link>
                   <Link
-                    href="/favorites"
+                    href="/watchlist"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
                   >
-                    <Heart className="w-4 h-4 text-zinc-400" />
-                    <span>Favorites</span>
+                    <Bookmark className="w-4 h-4 text-zinc-400" />
+                    <span>Watchlist</span>
+                  </Link>
+                  <Link
+                    href="/history"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
+                  >
+                    <History className="w-4 h-4 text-zinc-400" />
+                    <span>History</span>
                   </Link>
                   <Link
                     href="/download"
@@ -618,7 +570,7 @@ export default function Header() {
                   <Link
                     href="/settings"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
+                    className="col-span-2 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
                   >
                     <Settings className="w-4 h-4 text-zinc-400" />
                     <span>Settings</span>

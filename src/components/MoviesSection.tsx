@@ -3,88 +3,53 @@
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Star, ChevronRight, ChevronLeft } from "lucide-react";
+import { Star, ChevronRight, ChevronLeft, AlertCircle } from "lucide-react";
+import { MovieItem } from "@/domain/movie/movie.types";
 
-export interface MovieItem {
-  id: string;
-  title: string;
-  rating: string;
-  genre: string;
-  type: string;
-  backdrop: string;
-  href?: string;
-}
-
-export const moviesList: MovieItem[] = [
-  {
-    id: "1",
-    title: "Antman & The Wasp Quantu...",
-    rating: "4.6",
-    genre: "Action",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/m8JTwjd0NM2PAYYKDvCuWmuQIP5.jpg",
-    href: "/watch/ant-man-quantumania",
-  },
-  {
-    id: "2",
-    title: "Air; Courting A Legend",
-    rating: "4.6",
-    genre: "Action",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/2vFuG6bWGyQUzYS9d69E5l85nIz.jpg",
-    href: "/watch/air",
-  },
-  {
-    id: "3",
-    title: "John Wick; Chapter 4",
-    rating: "4.9",
-    genre: "Action",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/h8gHn0OzBoaefsYseUByqsmEDMY.jpg",
-    href: "/watch/john-wick-4",
-  },
-  {
-    id: "4",
-    title: "Mechamato Movie",
-    rating: "4.6",
-    genre: "Action",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/uLtVZrNYT1YvOz0Buw3EsY789GF.jpg",
-    href: "/watch/mechamato",
-  },
-  {
-    id: "5",
-    title: "Super Mario Bros",
-    rating: "4.6",
-    genre: "Action",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/9n2tJBplPbgR2ca05hO5qX29xuv.jpg",
-    href: "/watch/super-mario-bros",
-  },
-  {
-    id: "6",
-    title: "Avatar: The Way of Water",
-    rating: "4.8",
-    genre: "Sci-Fi",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/8YFL5QQVPy3AgrEQxNYVSgiPEbe.jpg",
-    href: "/watch/avatar-2",
-  },
-  {
-    id: "7",
-    title: "Guardians of the Galaxy 3",
-    rating: "4.7",
-    genre: "Action",
-    type: "Movie",
-    backdrop: "https://image.tmdb.org/t/p/w500/5YZbUmjbMa3ClvSW1Wj3D6XGolP.jpg",
-    href: "/watch/gotg-3",
-  },
-];
+export type { MovieItem };
 
 export default function MoviesSection() {
+  const [movies, setMovies] = useState<MovieItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasError, setHasError] = useState<boolean>(false);
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchBestMovies() {
+      try {
+        setIsLoading(true);
+        setHasError(false);
+        const res = await fetch("/api/movies/best");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch best movies: ${res.status}`);
+        }
+        const data = await res.json();
+        if (isMounted && data.movies && Array.isArray(data.movies)) {
+          setMovies(data.movies);
+        }
+      } catch (err) {
+        console.error("Error fetching best movies:", err);
+        if (isMounted) {
+          setHasError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchBestMovies();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const checkScrollPosition = () => {
     if (scrollContainerRef.current) {
@@ -98,7 +63,7 @@ export default function MoviesSection() {
     checkScrollPosition();
     window.addEventListener("resize", checkScrollPosition);
     return () => window.removeEventListener("resize", checkScrollPosition);
-  }, []);
+  }, [movies]);
 
   const handleScroll = (direction: "left" | "right") => {
     if (scrollContainerRef.current) {
@@ -111,15 +76,61 @@ export default function MoviesSection() {
     }
   };
 
+  // Loading skeleton state
+  if (isLoading) {
+    return (
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative overflow-hidden animate-pulse">
+        <div className="flex items-center justify-between mb-6">
+          <div className="h-8 w-56 bg-zinc-800 rounded-md" />
+          <div className="h-8 w-20 bg-zinc-800 rounded-xl" />
+        </div>
+        <div className="flex items-start gap-4 sm:gap-5 overflow-hidden">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              className="shrink-0 w-[230px] sm:w-[260px] md:w-[280px]"
+            >
+              <div className="w-full aspect-[16/10] rounded-2xl bg-zinc-800/80 mb-3" />
+              <div className="h-4 w-3/4 bg-zinc-800 rounded mb-2" />
+              <div className="h-3 w-1/2 bg-zinc-800/60 rounded" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  // Error state
+  if (hasError) {
+    return (
+      <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">
+            Best Movies For You
+          </h2>
+        </div>
+        <div className="flex flex-col items-center justify-center p-8 rounded-2xl bg-[#12151c] border border-white/10 text-center">
+          <AlertCircle className="w-8 h-8 text-red-400 mb-2" />
+          <p className="text-sm text-zinc-400">Unable to load best movies right now.</p>
+        </div>
+      </section>
+    );
+  }
+
+  // Empty state
+  if (movies.length === 0) {
+    return null;
+  }
+
   return (
     <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 relative overflow-hidden">
       {/* Section Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">
-          Movies
+          Best Movies For You
         </h2>
         <Link
-          href="/movies"
+          href="/discover?tab=movies&country=all&genre=all&sort=most-rated#browse-section"
           className="font-custom1 inline-flex items-center justify-center px-4 py-1.5 rounded-xl text-sm font-medium text-zinc-300 bg-[#1c202a] hover:bg-[#282e3c] hover:text-white border border-white/10 shadow-sm transition-all duration-200 active:scale-95"
         >
           See all
@@ -169,42 +180,62 @@ export default function MoviesSection() {
           className="flex items-start gap-4 sm:gap-5 overflow-x-auto scrollbar-none pb-2 scroll-smooth snap-x px-1"
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
-          {moviesList.map((movie) => (
-            <Link
-              key={movie.id}
-              href={movie.href || "#"}
-              className="group shrink-0 w-[230px] sm:w-[260px] md:w-[280px] select-none cursor-pointer snap-start"
-            >
-              {/* Landscape Thumbnail Box */}
-              <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-[#12151c] shadow-md transition-all duration-300 group-hover:scale-[1.03] group-hover:shadow-[0_8px_20px_rgba(0,0,0,0.8)]">
-                <Image
-                  src={movie.backdrop}
-                  alt={movie.title}
-                  fill
-                  className="object-cover transition-transform duration-500 group-hover:scale-105"
-                  sizes="(max-width: 640px) 230px, (max-width: 768px) 260px, 280px"
-                />
-              </div>
+          {movies.map((movie) => {
+            const firstGenre = movie.genres && movie.genres.length > 0 ? movie.genres[0] : null;
+            const remainingGenres = Math.max((movie.genres?.length || 0) - 1, 0);
 
-              {/* Title & Metadata Below Thumbnail */}
-              <div className="mt-3 flex flex-col space-y-1">
-                <h3 className="text-sm sm:text-[15px] font-bold text-white tracking-wide truncate group-hover:text-emerald-400 transition-colors">
-                  {movie.title}
-                </h3>
-
-                <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
-                  <div className="flex items-center gap-1 text-amber-400 font-semibold">
-                    <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                    <span>{movie.rating}</span>
-                  </div>
-                  <span className="text-zinc-600">•</span>
-                  <span>{movie.genre}</span>
-                  <span className="text-zinc-600">•</span>
-                  <span>{movie.type}</span>
+            return (
+              <Link
+                key={movie.id}
+                href={`/movies/${movie.id}`}
+                className="group shrink-0 w-[230px] sm:w-[260px] md:w-[280px] select-none cursor-pointer snap-start"
+              >
+                {/* Landscape Thumbnail Box */}
+                <div className="relative w-full aspect-[16/10] rounded-2xl overflow-hidden bg-[#12151c] shadow-md transition-all duration-300 group-hover:scale-[1.03] group-hover:shadow-[0_8px_20px_rgba(0,0,0,0.8)]">
+                  {movie.backdrop ? (
+                    <Image
+                      src={movie.backdrop}
+                      alt={movie.title}
+                      fill
+                      className="object-cover transition-transform duration-500 group-hover:scale-105"
+                      sizes="(max-width: 640px) 230px, (max-width: 768px) 260px, 280px"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#151922] flex items-center justify-center text-xs text-zinc-500">
+                      No Image
+                    </div>
+                  )}
                 </div>
-              </div>
-            </Link>
-          ))}
+
+                {/* Title & Metadata Below Thumbnail */}
+                <div className="mt-3 flex flex-col space-y-1">
+                  <h3 className="text-sm sm:text-[15px] font-bold text-white tracking-wide truncate group-hover:text-emerald-400 transition-colors">
+                    {movie.title}
+                  </h3>
+
+                  <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
+                    <div className="flex items-center gap-1 text-amber-400 font-semibold">
+                      <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                      <span>{movie.rating}</span>
+                    </div>
+
+                    {firstGenre && (
+                      <>
+                        <span className="text-zinc-600">•</span>
+                        <span className="truncate">
+                          {firstGenre}
+                          {remainingGenres > 0 && ` +${remainingGenres}`}
+                        </span>
+                      </>
+                    )}
+
+                    <span className="text-zinc-600">•</span>
+                    <span>{movie.type}</span>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </section>
