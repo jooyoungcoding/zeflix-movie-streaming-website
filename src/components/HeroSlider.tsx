@@ -5,10 +5,8 @@ import Image from "next/image";
 import {
   Film,
   Bookmark,
-  Heart,
   Volume2,
   VolumeX,
-  Star,
   ChevronLeft,
   ChevronRight,
   Check,
@@ -20,11 +18,8 @@ export interface MovieSlide {
   id: string;
   tag: string;
   title: string;
-  rating: string;
-  duration: string;
   year: string;
   genres: string[];
-  certificate: string;
   description: string;
   backdrop: string;
   trailerId: string; // YouTube Video ID
@@ -35,11 +30,8 @@ export const heroMovies: MovieSlide[] = [
     id: "1",
     tag: "Coming next week",
     title: "Star Wars: The force Awaken",
-    rating: "4.8",
-    duration: "2h40m",
     year: "2022",
     genres: ["Fantasy", "Actions"],
-    certificate: "PG-13",
     description:
       "The third season of the American television series The Mandalorian stars Pedro Pascal as the title character, a bounty hunter traveling to Mandalore to redeem his past transgressions with his adopted son Grogu and being aided on their journey by fellow Mandalorian Bo-Katan Kryze.",
     backdrop: "https://image.tmdb.org/t/p/original/k68nPLbIST6NP96JmTxmZijEvCA.jpg",
@@ -49,11 +41,8 @@ export const heroMovies: MovieSlide[] = [
     id: "2",
     tag: "Trending #1",
     title: "Dune: Part Two",
-    rating: "4.9",
-    duration: "2h46m",
     year: "2024",
     genres: ["Sci-Fi", "Adventure"],
-    certificate: "PG-13",
     description:
       "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the universe, he endeavors to prevent a terrible future.",
     backdrop: "https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s520bne.jpg",
@@ -63,11 +52,8 @@ export const heroMovies: MovieSlide[] = [
     id: "3",
     tag: "Oscar Winner",
     title: "Oppenheimer",
-    rating: "4.9",
-    duration: "3h00m",
     year: "2023",
     genres: ["Biography", "Drama"],
-    certificate: "R",
     description:
       "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb during World War II, exploring the moral complexities and global aftermath of the Manhattan Project.",
     backdrop: "https://image.tmdb.org/t/p/original/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg",
@@ -77,11 +63,8 @@ export const heroMovies: MovieSlide[] = [
     id: "4",
     tag: "Fan Favorite",
     title: "Spider-Man: Across the Spider-Verse",
-    rating: "4.9",
-    duration: "2h20m",
     year: "2023",
     genres: ["Animation", "Action"],
-    certificate: "PG",
     description:
       "Miles Morales catapults across the Multiverse, where he encounters a team of Spider-People charged with protecting its very existence. When the heroes clash on how to handle a new threat, Miles must redefine what it means to be a hero.",
     backdrop: "https://image.tmdb.org/t/p/original/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg",
@@ -91,11 +74,8 @@ export const heroMovies: MovieSlide[] = [
     id: "5",
     tag: "Sci-Fi Classic",
     title: "Interstellar",
-    rating: "4.9",
-    duration: "2h49m",
     year: "2014",
     genres: ["Sci-Fi", "Drama"],
-    certificate: "PG-13",
     description:
       "When Earth becomes uninhabitable in the future, a farmer and ex-NASA pilot, Joseph Cooper, is tasked to pilot a spacecraft, along with a team of researchers, to find a new planet for humanity's survival across the distant galaxy.",
     backdrop: "https://image.tmdb.org/t/p/original/rAiYTsqJJR9as0HN5q9m8BH9bQI.jpg",
@@ -142,9 +122,9 @@ export default function HeroSlider() {
     setWatchlist((prev) => ({ ...prev, [movie.id]: willBeAdded }));
 
     if (willBeAdded) {
-      toast.success(`Added "${movie.title}" to Favorites!`, {
+      toast.success(`Added "${movie.title}" to Watchlist!`, {
         id: `watchlist-${movie.id}`,
-        icon: "❤️",
+        icon: "🔖",
         style: {
           borderRadius: "12px",
           background: "#161922",
@@ -153,9 +133,9 @@ export default function HeroSlider() {
         },
       });
     } else {
-      toast(`Removed "${movie.title}" from Favorites`, {
+      toast(`Removed "${movie.title}" from Watchlist`, {
         id: `watchlist-${movie.id}`,
-        icon: "💔",
+        icon: "🗑️",
         style: {
           borderRadius: "12px",
           background: "#161922",
@@ -244,24 +224,9 @@ export default function HeroSlider() {
 
             {/* Metadata Details Row */}
             <div className="animate-hero-meta flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs sm:text-sm text-zinc-300 font-medium">
-              <div className="flex items-center gap-1 text-amber-400 font-bold">
-                <Star className="w-4 h-4 fill-amber-400" />
-                <span>{currentMovie.rating}</span>
-              </div>
-              <span className="text-zinc-500">•</span>
-              <span>{currentMovie.duration}</span>
-              <span className="text-zinc-500">•</span>
               <span>{currentMovie.year}</span>
               <span className="text-zinc-500">•</span>
               <span>{currentMovie.genres.join(" • ")}</span>
-              {currentMovie.certificate && (
-                <>
-                  <span className="text-zinc-500">•</span>
-                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-zinc-300 text-[11px] font-semibold">
-                    {currentMovie.certificate}
-                  </span>
-                </>
-              )}
             </div>
 
             {/* Description Paragraph */}
@@ -280,20 +245,20 @@ export default function HeroSlider() {
                 <span>Watch Trailer</span>
               </button>
 
-              {/* Add Favorites Button (Dark Glass with Heart icon) */}
+              {/* Add Watchlist Button (Dark Glass with Bookmark icon) */}
               <button
                 onClick={() => toggleWatchlist(currentMovie)}
                 className="font-custom1 inline-flex items-center gap-2 px-4.5 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl bg-[#1c202a]/80 hover:bg-[#282e3c] text-white font-medium text-xs sm:text-sm lg:text-base backdrop-blur-md border border-white/15 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer group/fav"
               >
                 {watchlist[currentMovie.id] ? (
                   <>
-                    <Heart className="w-4 sm:w-5 h-4 sm:h-5 text-red-500 fill-red-500 stroke-red-500 transition-transform duration-300 scale-110" />
-                    <span>Added to Favorites</span>
+                    <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 transition-transform duration-300 scale-110" />
+                    <span>Added to Watchlist</span>
                   </>
                 ) : (
                   <>
-                    <Heart className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-red-400 group-hover/fav:scale-110" />
-                    <span>Add Favorites</span>
+                    <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-yellow-400 group-hover/fav:scale-110" />
+                    <span>Add Watchlist</span>
                   </>
                 )}
               </button>

@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { Play, Heart, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Bookmark, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 
 export interface AwardTVSeries {
@@ -105,9 +105,9 @@ export default function TVSeriesOnAwards() {
     }));
 
     if (!isAdded) {
-      toast.success(`Added "${item.title}" to Favorites!`, {
-        id: `fav-${item.id}`,
-        icon: "❤️",
+      toast.success(`Added "${item.title}" to Watchlist!`, {
+        id: `watchlist-${item.id}`,
+        icon: "🔖",
         duration: 2500,
         style: {
           background: "#12151c",
@@ -116,9 +116,9 @@ export default function TVSeriesOnAwards() {
         },
       });
     } else {
-      toast(`Removed "${item.title}" from Favorites`, {
-        id: `fav-${item.id}`,
-        icon: "💔",
+      toast(`Removed "${item.title}" from Watchlist`, {
+        id: `watchlist-${item.id}`,
+        icon: "🗑️",
         duration: 2000,
         style: {
           background: "#12151c",
@@ -233,7 +233,7 @@ export default function TVSeriesOnAwards() {
             <span>Watch Now</span>
           </button>
 
-          {/* Add Favorites Button */}
+          {/* Add Watchlist Button */}
           <button
             type="button"
             onClick={() => toggleFavorite(currentItem)}
@@ -241,13 +241,13 @@ export default function TVSeriesOnAwards() {
           >
             {favorites[currentItem.id] ? (
               <>
-                <Heart className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-red-500 fill-red-500 stroke-red-500 transition-transform duration-300 scale-110 shrink-0" />
-                <span>Added to Favorites</span>
+                <Bookmark className="w-3.5 sm:w-4 h-3.5 sm:h-4 text-yellow-400 fill-yellow-400 stroke-yellow-400 transition-transform duration-300 scale-110 shrink-0" />
+                <span>Added to Watchlist</span>
               </>
             ) : (
               <>
-                <Heart className="w-3.5 sm:w-4 h-3.5 sm:h-4 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-red-400 group-hover/fav:scale-110 shrink-0" />
-                <span>Add Favorites</span>
+                <Bookmark className="w-3.5 sm:w-4 h-3.5 sm:h-4 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-yellow-400 group-hover/fav:scale-110 shrink-0" />
+                <span>Add Watchlist</span>
               </>
             )}
           </button>

@@ -12,7 +12,7 @@ import {
   Moon,
   User,
   SquarePen,
-  Heart,
+  Bookmark,
   Download,
   Settings,
   LogOut,
@@ -399,12 +399,12 @@ export default function Header() {
                   </Link>
 
                   <Link
-                    href="/favorites"
+                    href="/watchlist"
                     onClick={() => setIsProfileOpen(false)}
                     className="flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[14px] font-medium text-zinc-200 hover:text-white hover:bg-white/[0.08] transition-all duration-150 group"
                   >
-                    <Heart className="w-5 h-5 text-zinc-400 group-hover:text-white transition-colors shrink-0 stroke-[2]" />
-                    <span>Favorites</span>
+                    <Bookmark className="w-5 h-5 text-zinc-400 group-hover:text-white transition-colors shrink-0 stroke-[2]" />
+                    <span>Watchlist</span>
                   </Link>
 
                   <Link
@@ -600,12 +600,12 @@ export default function Header() {
                     <span>Edit account</span>
                   </Link>
                   <Link
-                    href="/favorites"
+                    href="/watchlist"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
                   >
-                    <Heart className="w-4 h-4 text-zinc-400" />
-                    <span>Favorites</span>
+                    <Bookmark className="w-4 h-4 text-zinc-400" />
+                    <span>Watchlist</span>
                   </Link>
                   <Link
                     href="/download"

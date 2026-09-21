@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import {
   Play,
-  Heart,
+  Bookmark,
   Star,
   ChevronRight,
   ChevronLeft,
@@ -129,9 +129,9 @@ export default function FeaturedInZeflix() {
     }));
 
     if (!isAdded) {
-      toast.success(`Added "${movie.title}" to Favorites!`, {
-        id: `fav-${movie.id}`,
-        icon: "❤️",
+      toast.success(`Added "${movie.title}" to Watchlist!`, {
+        id: `watchlist-${movie.id}`,
+        icon: "🔖",
         duration: 2500,
         style: {
           background: "#12151c",
@@ -140,9 +140,9 @@ export default function FeaturedInZeflix() {
         },
       });
     } else {
-      toast(`Removed "${movie.title}" from Favorites`, {
-        id: `fav-${movie.id}`,
-        icon: "💔",
+      toast(`Removed "${movie.title}" from Watchlist`, {
+        id: `watchlist-${movie.id}`,
+        icon: "🗑️",
         duration: 2000,
         style: {
           background: "#12151c",
@@ -250,7 +250,7 @@ export default function FeaturedInZeflix() {
                 <span>Watch Now</span>
               </button>
 
-              {/* Add Favorites Button */}
+              {/* Add Watchlist Button */}
               <button
                 type="button"
                 onClick={() => toggleFavorite(currentMovie)}
@@ -258,13 +258,13 @@ export default function FeaturedInZeflix() {
               >
                 {favorites[currentMovie.id] ? (
                   <>
-                    <Heart className="w-4 sm:w-5 h-4 sm:h-5 text-red-500 fill-red-500 stroke-red-500 transition-transform duration-300 scale-110 shrink-0" />
-                    <span className="truncate">Added to Favorites</span>
+                    <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 transition-transform duration-300 scale-110 shrink-0" />
+                    <span className="truncate">Added to Watchlist</span>
                   </>
                 ) : (
                   <>
-                    <Heart className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-red-400 group-hover/fav:scale-110 shrink-0" />
-                    <span className="truncate">Add Favorites</span>
+                    <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-yellow-400 group-hover/fav:scale-110 shrink-0" />
+                    <span className="truncate">Add Watchlist</span>
                   </>
                 )}
               </button>
