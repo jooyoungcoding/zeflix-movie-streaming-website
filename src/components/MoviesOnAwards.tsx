@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Play, Bookmark, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -16,85 +17,58 @@ export interface AwardMovie {
   certificate: string;
   description: string;
   backdrop: string;
-  href?: string;
 }
 
-export const awardMoviesList: AwardMovie[] = [
-  {
-    id: "mov-aw-1",
-    tag: "Best Pictures",
-    title: "Gundala",
-    rating: "4.6",
-    duration: "2h40m",
-    year: "2022",
-    genres: ["Superhero", "Action"],
-    certificate: "PG-13",
-    description:
-      "When international arms dealer and criminal mastermind Elena Federova orchestrates seven simultaneous New York City bank heists, principled and relentless agent Val Turner vows to take her down. An outcast in the bureau, Val soon learns that she'll have to...",
-    backdrop: "https://image.tmdb.org/t/p/original/2vFuG6bWGyQUzYS9d69E5l85nIz.jpg",
-    href: "/watch/gundala",
-  },
-  {
-    id: "mov-aw-2",
-    tag: "7 Oscar Winner",
-    title: "Oppenheimer",
-    rating: "4.9",
-    duration: "3h00m",
-    year: "2023",
-    genres: ["Biography", "Drama"],
-    certificate: "R",
-    description:
-      "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb during World War II, exploring the moral complexities and global aftermath of the Manhattan Project.",
-    backdrop: "https://image.tmdb.org/t/p/original/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg",
-    href: "/watch/oppenheimer",
-  },
-  {
-    id: "mov-aw-3",
-    tag: "Best Picture 2023",
-    title: "Everything Everywhere All at Once",
-    rating: "4.8",
-    duration: "2h19m",
-    year: "2022",
-    genres: ["Sci-Fi", "Comedy"],
-    certificate: "R",
-    description:
-      "A middle-aged Chinese immigrant is swept up into an insane adventure in which she alone can save existence by exploring other universes and connecting with the lives she could have led.",
-    backdrop: "https://image.tmdb.org/t/p/original/m8JTwjd0NM2PAYYKDvCuWmuQIP5.jpg",
-    href: "/watch/eeaao",
-  },
-  {
-    id: "mov-aw-4",
-    tag: "Visual Masterpiece",
-    title: "Dune: Part Two",
-    rating: "4.9",
-    duration: "2h46m",
-    year: "2024",
-    genres: ["Sci-Fi", "Adventure"],
-    certificate: "PG-13",
-    description:
-      "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the universe.",
-    backdrop: "https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s520bne.jpg",
-    href: "/watch/dune-2",
-  },
-];
+interface MoviesOnAwardsProps {
+  onDataStatus?: (hasData: boolean) => void;
+}
 
-export default function MoviesOnAwards() {
-  const [currentIndex, setCurrentIndex] = useState(0);
+export default function MoviesOnAwards({ onDataStatus }: MoviesOnAwardsProps) {
+  const router = useRouter();
+  const [items, setItems] = useState<AwardMovie[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isError, setIsError] = useState<boolean>(false);
+  const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [direction, setDirection] = useState<"right" | "left">("right");
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
 
-  const currentItem = awardMoviesList[currentIndex];
+  const fetchAwardMovies = async () => {
+    setIsLoading(true);
+    setIsError(false);
+    try {
+      const response = await fetch("/api/movies/awards");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const list: AwardMovie[] = data.items || [];
+      setItems(list);
+      setCurrentIndex(0);
+      onDataStatus?.(list.length > 0);
+    } catch (err) {
+      console.error("Failed to load movies on awards:", err);
+      setIsError(true);
+      onDataStatus?.(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAwardMovies();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleNext = () => {
+    if (items.length <= 1) return;
     setDirection("right");
-    setCurrentIndex((prev) => (prev + 1) % awardMoviesList.length);
+    setCurrentIndex((prev) => (prev + 1) % items.length);
   };
 
   const handlePrev = () => {
+    if (items.length <= 1) return;
     setDirection("left");
-    setCurrentIndex(
-      (prev) => (prev - 1 + awardMoviesList.length) % awardMoviesList.length
-    );
+    setCurrentIndex((prev) => (prev - 1 + items.length) % items.length);
   };
 
   const toggleFavorite = (item: AwardMovie) => {
@@ -129,6 +103,43 @@ export default function MoviesOnAwards() {
     }
   };
 
+  const navigateToMovie = (id: string) => {
+    router.push(`/movies/${id}`);
+  };
+
+  // Loading Skeleton State
+  if (isLoading) {
+    return (
+      <div className="flex flex-col h-full justify-between overflow-hidden animate-pulse">
+        <div className="flex items-center justify-between mb-4 sm:mb-5">
+          <div className="h-8 w-48 bg-zinc-800/80 rounded-md" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-zinc-800/60" />
+            <div className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-zinc-800/60" />
+          </div>
+        </div>
+        <div className="flex flex-col flex-1 space-y-3.5 sm:space-y-4">
+          <div className="w-full aspect-[16/9.5] rounded-xl sm:rounded-2xl bg-zinc-800/60" />
+          <div className="h-6 w-28 bg-zinc-800/80 rounded-lg" />
+          <div className="h-7 w-3/4 bg-zinc-800/80 rounded-md" />
+          <div className="h-4 w-1/2 bg-zinc-800/50 rounded-md" />
+          <div className="h-12 w-full bg-zinc-800/40 rounded-md" />
+          <div className="flex items-center gap-3 pt-2">
+            <div className="h-10 w-28 bg-zinc-800/70 rounded-xl" />
+            <div className="h-10 w-32 bg-zinc-800/60 rounded-xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Hide component if error or no items found
+  if (isError || items.length === 0) {
+    return null;
+  }
+
+  const currentItem = items[currentIndex] || items[0];
+
   return (
     <div className="flex flex-col h-full justify-between overflow-hidden">
       {/* Header with Title & Navigation Arrows */}
@@ -142,7 +153,8 @@ export default function MoviesOnAwards() {
           <button
             type="button"
             onClick={handlePrev}
-            className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-[#1c202a] hover:bg-[#2a303d] text-zinc-300 hover:text-white flex items-center justify-center transition-all duration-200 border border-white/10 active:scale-95 cursor-pointer"
+            disabled={items.length <= 1}
+            className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-[#1c202a] hover:bg-[#2a303d] disabled:opacity-40 disabled:hover:bg-[#1c202a] text-zinc-300 hover:text-white flex items-center justify-center transition-all duration-200 border border-white/10 active:scale-95 cursor-pointer disabled:cursor-not-allowed"
             aria-label="Previous movie on awards"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -150,7 +162,8 @@ export default function MoviesOnAwards() {
           <button
             type="button"
             onClick={handleNext}
-            className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-[#1c202a] hover:bg-[#2a303d] text-zinc-300 hover:text-white flex items-center justify-center transition-all duration-200 border border-white/10 active:scale-95 cursor-pointer"
+            disabled={items.length <= 1}
+            className="w-8 sm:w-9 h-8 sm:h-9 rounded-full bg-[#1c202a] hover:bg-[#2a303d] disabled:opacity-40 disabled:hover:bg-[#1c202a] text-zinc-300 hover:text-white flex items-center justify-center transition-all duration-200 border border-white/10 active:scale-95 cursor-pointer disabled:cursor-not-allowed"
             aria-label="Next movie on awards"
           >
             <ChevronRight className="w-4 h-4" />
@@ -166,16 +179,25 @@ export default function MoviesOnAwards() {
         }`}
       >
         {/* Landscape Image Banner */}
-        <div className="relative w-full aspect-[16/9.5] rounded-xl sm:rounded-2xl overflow-hidden bg-[#12151c] shadow-lg">
-          <Image
-            key={currentItem.id}
-            src={currentItem.backdrop}
-            alt={currentItem.title}
-            fill
-            priority
-            className="object-cover transition-transform duration-700 hover:scale-105"
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 600px"
-          />
+        <div
+          onClick={() => navigateToMovie(currentItem.id)}
+          className="relative w-full aspect-[16/9.5] rounded-xl sm:rounded-2xl overflow-hidden bg-[#12151c] shadow-lg cursor-pointer group"
+        >
+          {currentItem.backdrop ? (
+            <Image
+              key={currentItem.id}
+              src={currentItem.backdrop}
+              alt={currentItem.title}
+              fill
+              priority
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 600px"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-zinc-900 text-zinc-600 text-xs">
+              No Backdrop Available
+            </div>
+          )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
         </div>
 
@@ -189,7 +211,8 @@ export default function MoviesOnAwards() {
         {/* Title */}
         <h3
           key={`title-${currentItem.id}`}
-          className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight leading-tight line-clamp-1"
+          onClick={() => navigateToMovie(currentItem.id)}
+          className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight leading-tight line-clamp-1 hover:text-emerald-400 transition-colors cursor-pointer"
         >
           {currentItem.title}
         </h3>
@@ -200,18 +223,39 @@ export default function MoviesOnAwards() {
             <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
             <span>{currentItem.rating}</span>
           </div>
-          <span className="text-zinc-600">•</span>
-          <span className="text-emerald-400 font-medium">{currentItem.duration}</span>
-          <span className="text-zinc-600">•</span>
-          <span className="text-emerald-400 font-medium">{currentItem.year}</span>
-          {currentItem.genres.map((genre) => (
-            <React.Fragment key={genre}>
+
+          {currentItem.duration && (
+            <>
               <span className="text-zinc-600">•</span>
-              <span className="text-emerald-400 font-medium">{genre}</span>
-            </React.Fragment>
-          ))}
-          <span className="text-zinc-600">•</span>
-          <span className="text-emerald-400 font-medium">{currentItem.certificate}</span>
+              <span className="text-emerald-400 font-medium">{currentItem.duration}</span>
+            </>
+          )}
+
+          {currentItem.year && (
+            <>
+              <span className="text-zinc-600">•</span>
+              <span className="text-emerald-400 font-medium">{currentItem.year}</span>
+            </>
+          )}
+
+          {currentItem.genres && currentItem.genres.length > 0 && (
+            <>
+              <span className="text-zinc-600">•</span>
+              <span className="text-emerald-400 font-medium">
+                {currentItem.genres[0]}
+                {currentItem.genres.length > 1
+                  ? ` +${currentItem.genres.length - 1}`
+                  : ""}
+              </span>
+            </>
+          )}
+
+          {currentItem.certificate && (
+            <>
+              <span className="text-zinc-600">•</span>
+              <span className="text-emerald-400 font-medium">{currentItem.certificate}</span>
+            </>
+          )}
         </div>
 
         {/* Description Paragraph */}
@@ -227,6 +271,7 @@ export default function MoviesOnAwards() {
           {/* Watch Now Button */}
           <button
             type="button"
+            onClick={() => navigateToMovie(currentItem.id)}
             className="font-custom1 inline-flex items-center justify-center gap-2 px-5 sm:px-6 py-2.5 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white text-xs sm:text-sm font-bold tracking-wide transition-all duration-200 shadow-md shadow-emerald-950/40 cursor-pointer"
           >
             <Play className="w-3.5 sm:w-4 h-3.5 sm:h-4 fill-white text-white" />

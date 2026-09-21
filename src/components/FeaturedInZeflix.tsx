@@ -1,136 +1,82 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   Play,
   Bookmark,
   Star,
   ChevronRight,
   ChevronLeft,
+  AlertCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { FeaturedContent } from "@/domain/movie/movie.types";
 
-export interface FeaturedMovie {
-  id: string;
-  tag: string;
-  title: string;
-  rating: string;
-  duration: string;
-  year: string;
-  genres: string[];
-  certificate: string;
-  description: string;
-  poster: string;
-  backdrop: string;
-  trailerUrl?: string;
-  href?: string;
-}
-
-export const featuredMovies: FeaturedMovie[] = [
-  {
-    id: "1",
-    tag: "#1 in Australia",
-    title: "Air Courting A Legend",
-    rating: "4.6",
-    duration: "2h40m",
-    year: "2022",
-    genres: ["Fantasy", "Actions"],
-    certificate: "PG-13",
-    description:
-      "When international arms dealer and criminal mastermind Elena Federova orchestrates seven simultaneous New York City bank heists, principled and relentless agent Val Turner vows to take her down. An outcast in the bureau, Val soon learns that she'll have to...",
-    poster: "https://image.tmdb.org/t/p/w500/76AKQPdH3M8cvsFR9K8JsOzVlY5.jpg",
-    backdrop: "https://image.tmdb.org/t/p/original/2vFuG6bWGyQUzYS9d69E5l85nIz.jpg",
-    href: "/watch/air",
-  },
-  {
-    id: "2",
-    tag: "#1 in Global Trending",
-    title: "The Last Of Us",
-    rating: "4.8",
-    duration: "1h00m",
-    year: "2023",
-    genres: ["Horror", "Thriller", "Action"],
-    certificate: "TV-MA",
-    description:
-      "Twenty years after modern civilization has been destroyed, Joel, a hardened survivor, is hired to smuggle Ellie, a 14-year-old girl, out of an oppressive quarantine zone. What starts as a small job soon becomes a brutal, heartbreaking journey.",
-    poster: "https://image.tmdb.org/t/p/w500/uDgy6hyPd82kOHh6I95FLtLnj6p.jpg",
-    backdrop: "https://image.tmdb.org/t/p/original/uDgy6hyPd82kOHh6I95FLtLnj6p.jpg",
-    href: "/watch/the-last-of-us",
-  },
-  {
-    id: "3",
-    tag: "#1 in Sci-Fi",
-    title: "Dune: Part Two",
-    rating: "4.9",
-    duration: "2h46m",
-    year: "2024",
-    genres: ["Sci-Fi", "Adventure"],
-    certificate: "PG-13",
-    description:
-      "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family. Facing a choice between the love of his life and the fate of the universe, he endeavors to prevent a terrible future.",
-    poster: "https://image.tmdb.org/t/p/w500/1pdfLvkbY9ohJlCjQH2CZjjYVvJ.jpg",
-    backdrop: "https://image.tmdb.org/t/p/original/xOMo8BRK7PfcJv9JCnx7s520bne.jpg",
-    href: "/watch/dune-2",
-  },
-  {
-    id: "4",
-    tag: "#1 in Oscar Winners",
-    title: "Oppenheimer",
-    rating: "4.9",
-    duration: "3h00m",
-    year: "2023",
-    genres: ["Biography", "Drama", "History"],
-    certificate: "R",
-    description:
-      "The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb during World War II, exploring the moral complexities and global aftermath of the Manhattan Project.",
-    poster: "https://image.tmdb.org/t/p/w500/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg",
-    backdrop: "https://image.tmdb.org/t/p/original/fm6KqXpk3M2HVveHwCrBSSBaO0V.jpg",
-    href: "/watch/oppenheimer",
-  },
-  {
-    id: "5",
-    tag: "#1 in Animation",
-    title: "Spider-Man: Across Spider-Verse",
-    rating: "4.9",
-    duration: "2h20m",
-    year: "2023",
-    genres: ["Animation", "Action", "Sci-Fi"],
-    certificate: "PG",
-    description:
-      "Miles Morales catapults across the Multiverse, where he encounters a team of Spider-People charged with protecting its very existence. When the heroes clash on how to handle a new threat, Miles must redefine what it means to be a hero.",
-    poster: "https://image.tmdb.org/t/p/w500/8Vt6mWEReuy4Of61Lnj5Xj704m8.jpg",
-    backdrop: "https://image.tmdb.org/t/p/original/4HodYYKEIsGOdinkGi2Ucz6X9i0.jpg",
-    href: "/watch/spider-man-spider-verse",
-  },
-];
+export type { FeaturedContent };
 
 export default function FeaturedInZeflix() {
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [items, setItems] = useState<FeaturedContent[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [hasError, setHasError] = useState<boolean>(false);
+  const [activeIndex, setActiveIndex] = useState<number>(0);
   const [favorites, setFavorites] = useState<Record<string, boolean>>({});
 
-  const currentMovie = featuredMovies[activeIndex];
+  useEffect(() => {
+    let isMounted = true;
+
+    async function fetchFeatured() {
+      try {
+        setIsLoading(true);
+        setHasError(false);
+        const res = await fetch("/api/featured");
+        if (!res.ok) {
+          throw new Error(`Failed to fetch featured content: ${res.status}`);
+        }
+        const data = await res.json();
+        if (isMounted && data.items && Array.isArray(data.items)) {
+          setItems(data.items);
+        }
+      } catch (err) {
+        console.error("Error fetching featured content:", err);
+        if (isMounted) {
+          setHasError(true);
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    fetchFeatured();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleNext = () => {
-    setActiveIndex((prev) => (prev + 1) % featuredMovies.length);
+    if (items.length === 0) return;
+    setActiveIndex((prev) => (prev + 1) % items.length);
   };
 
   const handlePrev = () => {
-    setActiveIndex(
-      (prev) => (prev - 1 + featuredMovies.length) % featuredMovies.length
-    );
+    if (items.length === 0) return;
+    setActiveIndex((prev) => (prev - 1 + items.length) % items.length);
   };
 
-  const toggleFavorite = (movie: FeaturedMovie) => {
-    const isAdded = !!favorites[movie.id];
+  const toggleFavorite = (item: FeaturedContent) => {
+    const isAdded = !!favorites[item.id];
     setFavorites((prev) => ({
       ...prev,
-      [movie.id]: !isAdded,
+      [item.id]: !isAdded,
     }));
 
     if (!isAdded) {
-      toast.success(`Added "${movie.title}" to Watchlist!`, {
-        id: `watchlist-${movie.id}`,
+      toast.success(`Added "${item.title}" to Watchlist!`, {
+        id: `watchlist-${item.id}`,
         icon: "🔖",
         duration: 2500,
         style: {
@@ -140,8 +86,8 @@ export default function FeaturedInZeflix() {
         },
       });
     } else {
-      toast(`Removed "${movie.title}" from Watchlist`, {
-        id: `watchlist-${movie.id}`,
+      toast(`Removed "${item.title}" from Watchlist`, {
+        id: `watchlist-${item.id}`,
         icon: "🗑️",
         duration: 2000,
         style: {
@@ -153,23 +99,84 @@ export default function FeaturedInZeflix() {
     }
   };
 
+  // Loading skeleton state
+  if (isLoading) {
+    return (
+      <section className="w-full relative min-h-[580px] sm:min-h-[620px] lg:min-h-[660px] overflow-hidden border-none my-4 sm:my-8 flex flex-col justify-between animate-pulse">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 lg:pt-10 pb-10 sm:pb-14 flex flex-col flex-1 justify-between">
+          <div className="mb-6 sm:mb-8 lg:mb-10">
+            <div className="h-8 w-60 bg-zinc-800/80 rounded-md mb-2" />
+            <div className="h-4 w-44 bg-zinc-800/60 rounded-md" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-center">
+            <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col space-y-4">
+              <div className="h-6 w-32 bg-zinc-800/80 rounded-full" />
+              <div className="h-10 w-3/4 bg-zinc-800/80 rounded-lg" />
+              <div className="h-5 w-1/2 bg-zinc-800/60 rounded-md" />
+              <div className="h-16 w-full max-w-2xl bg-zinc-800/40 rounded-lg" />
+              <div className="flex gap-4 pt-2">
+                <div className="h-12 w-36 bg-zinc-800/80 rounded-xl" />
+                <div className="h-12 w-36 bg-zinc-800/60 rounded-xl" />
+              </div>
+            </div>
+            <div className="order-1 lg:order-2 lg:col-span-5 flex gap-3 overflow-hidden">
+              <div className="w-[145px] sm:w-[185px] lg:w-[208px] aspect-[2/3] bg-zinc-800/80 rounded-2xl shrink-0" />
+              <div className="w-[145px] sm:w-[185px] lg:w-[208px] aspect-[2/3] bg-zinc-800/40 rounded-2xl shrink-0" />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // Error state
+  if (hasError) {
+    return (
+      <section className="w-full relative min-h-[300px] flex items-center justify-center my-4 sm:my-8 px-4">
+        <div className="flex flex-col items-center justify-center p-8 rounded-2xl bg-[#12151c] border border-white/10 text-center max-w-md">
+          <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+          <h3 className="text-lg font-bold text-white mb-1">Featured Content</h3>
+          <p className="text-sm text-zinc-400">Unable to load featured content.</p>
+        </div>
+      </section>
+    );
+  }
+
+  // Empty state
+  if (items.length === 0) {
+    return null;
+  }
+
+  const currentItem = items[activeIndex] || items[0];
+  const watchHref =
+    currentItem.type === "Movie"
+      ? `/movies/${currentItem.id}`
+      : `/tv/${currentItem.id}`;
+
+  const firstGenre = currentItem.genres && currentItem.genres.length > 0 ? currentItem.genres[0] : null;
+  const remainingGenres = Math.max((currentItem.genres?.length || 0) - 1, 0);
+
   return (
     <section className="w-full relative min-h-[580px] sm:min-h-[620px] lg:min-h-[660px] overflow-hidden border-none my-4 sm:my-8 flex flex-col justify-between">
       {/* Full-Screen Dynamic Background Backdrop */}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <Image
-          key={currentMovie.id}
-          src={currentMovie.backdrop}
-          alt={currentMovie.title}
-          fill
-          priority
-          className="object-cover object-center scale-105 animate-fade-in transition-all duration-700 brightness-[0.38]"
-          sizes="100vw"
-        />
-        {/* Top Edge Seamless Fade to Solid Black (Removes Any Horizontal Edge) */}
+        {currentItem.backdrop ? (
+          <Image
+            key={currentItem.id}
+            src={currentItem.backdrop}
+            alt={currentItem.title}
+            fill
+            priority
+            className="object-cover object-center scale-105 animate-fade-in transition-all duration-700 brightness-[0.55]"
+            sizes="100vw"
+          />
+        ) : (
+          <div className="w-full h-full bg-[#0d1017]" />
+        )}
+        {/* Top Edge Seamless Fade to Solid Black */}
         <div className="absolute top-0 inset-x-0 h-24 sm:h-32 bg-gradient-to-b from-black via-black/50 to-transparent" />
-        {/* Left Side Shadow for Text Readability */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/90 to-transparent lg:w-[68%]" />
+        {/* Left Side Shadow for Text Readability (reduced shadow) */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent lg:w-[62%]" />
         {/* Bottom Edge Fade to Black */}
         <div className="absolute bottom-0 inset-x-0 h-36 sm:h-44 bg-gradient-to-t from-black via-black/80 to-transparent" />
         {/* Subtle Emerald Cinematic Glow */}
@@ -178,7 +185,7 @@ export default function FeaturedInZeflix() {
 
       {/* Content Layout Container */}
       <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 lg:pt-10 pb-10 sm:pb-14 flex flex-col flex-1 justify-between">
-        {/* Top Section Header (At the very top of background) */}
+        {/* Top Section Header */}
         <div className="mb-6 sm:mb-8 lg:mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">
             Featured in Zeflix
@@ -189,19 +196,21 @@ export default function FeaturedInZeflix() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-center">
-          {/* Movie Info (Appears Below Carousel on Mobile/Tablet via order-2) */}
+          {/* Item Info (Appears Below Carousel on Mobile/Tablet via order-2) */}
           <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col items-start space-y-3.5 sm:space-y-4 lg:space-y-5">
             {/* Tag Badge */}
-            <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/90 text-xs font-semibold tracking-wide">
-              <span>{currentMovie.tag}</span>
-            </div>
+            {currentItem.tag && (
+              <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/90 text-xs font-semibold tracking-wide">
+                <span>{currentItem.tag}</span>
+              </div>
+            )}
 
             {/* Title */}
             <h3
-              key={`title-${currentMovie.id}`}
+              key={`title-${currentItem.id}`}
               className="text-2xl sm:text-3xl lg:text-5xl font-black text-white tracking-tight leading-tight animate-hero-title"
             >
-              {currentMovie.title}
+              {currentItem.title}
             </h3>
 
             {/* Metadata Row */}
@@ -209,54 +218,77 @@ export default function FeaturedInZeflix() {
               {/* Star Rating */}
               <div className="flex items-center gap-1 text-amber-400 font-bold">
                 <Star className="w-4 h-4 fill-amber-400" />
-                <span>{currentMovie.rating}</span>
+                <span>{currentItem.rating}</span>
               </div>
 
+              {/* Type: Movie or TV Series */}
               <span className="text-zinc-500">•</span>
-              <span>{currentMovie.duration}</span>
+              <span className="text-zinc-300">{currentItem.type}</span>
 
-              <span className="text-zinc-500">•</span>
-              <span>{currentMovie.year}</span>
-
-              {currentMovie.genres.map((genre) => (
-                <React.Fragment key={genre}>
+              {/* Duration if available */}
+              {currentItem.duration && (
+                <>
                   <span className="text-zinc-500">•</span>
-                  <span className="text-emerald-400 font-medium">{genre}</span>
-                </React.Fragment>
-              ))}
+                  <span>{currentItem.duration}</span>
+                </>
+              )}
 
-              <span className="text-zinc-500">•</span>
-              <span className="px-1.5 py-0.5 rounded bg-white/10 text-zinc-300 text-[11px] font-semibold">
-                {currentMovie.certificate}
-              </span>
+              {/* Year if available */}
+              {currentItem.year && (
+                <>
+                  <span className="text-zinc-500">•</span>
+                  <span>{currentItem.year}</span>
+                </>
+              )}
+
+              {/* Genres with UI "+N" formatting */}
+              {firstGenre && (
+                <>
+                  <span className="text-zinc-500">•</span>
+                  <span className="text-emerald-400 font-medium">
+                    {firstGenre}
+                    {remainingGenres > 0 && ` +${remainingGenres}`}
+                  </span>
+                </>
+              )}
+
+              {/* Certificate badge if available */}
+              {currentItem.certificate && (
+                <>
+                  <span className="text-zinc-500">•</span>
+                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-zinc-300 text-[11px] font-semibold">
+                    {currentItem.certificate}
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Description */}
             <p
-              key={`desc-${currentMovie.id}`}
+              key={`desc-${currentItem.id}`}
               className="text-zinc-300/90 text-xs sm:text-sm lg:text-base leading-relaxed line-clamp-3 sm:line-clamp-4 max-w-2xl animate-hero-desc"
             >
-              {currentMovie.description}
+              {currentItem.description}
             </p>
 
-            {/* Action Buttons (Full width 2-column grid on mobile, flex on sm/desktop) */}
+            {/* Action Buttons */}
             <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex sm:items-center sm:gap-4 pt-1 sm:pt-2">
-              {/* Play Now Button */}
-              <button
-                type="button"
+              {/* Watch Now Button */}
+              <Link
+                href={watchHref}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 sm:px-7 py-3 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all duration-200 shadow-lg shadow-emerald-950/40 cursor-pointer"
               >
                 <Play className="w-4 h-4 fill-white" />
                 <span>Watch Now</span>
-              </button>
+              </Link>
 
               {/* Add Watchlist Button */}
               <button
                 type="button"
-                onClick={() => toggleFavorite(currentMovie)}
+                onClick={() => toggleFavorite(currentItem)}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 sm:px-6 py-3 rounded-xl bg-[#20242e]/90 hover:bg-[#2a303d] active:scale-95 text-white font-custom1 text-sm sm:text-base font-semibold tracking-wide border border-white/10 backdrop-blur-md transition-all duration-200 cursor-pointer truncate group/fav"
               >
-                {favorites[currentMovie.id] ? (
+                {favorites[currentItem.id] ? (
                   <>
                     <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 transition-transform duration-300 scale-110 shrink-0" />
                     <span className="truncate">Added to Watchlist</span>
@@ -271,43 +303,51 @@ export default function FeaturedInZeflix() {
             </div>
           </div>
 
-          {/* Posters Carousel (Appears Above Movie Info on Mobile/Tablet via order-1) */}
+          {/* Posters Carousel */}
           <div className="order-1 lg:order-2 lg:col-span-5 relative flex items-center justify-start lg:justify-end py-1 w-full overflow-hidden">
             {/* Carousel Viewport with desktop dynamic sliding mask */}
             <div
-              className={`relative w-full sm:w-[410px] lg:w-[436px] overflow-hidden py-2 px-1 transition-all duration-300 ${activeIndex > 0 && activeIndex < featuredMovies.length - 1
+              className={`relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300 ${
+                activeIndex > 0 && activeIndex < items.length - 1
                   ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_86%,transparent_100%)]"
                   : activeIndex > 0
                     ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_100%)]"
                     : "lg:[mask-image:linear-gradient(to_right,black_0%,black_86%,transparent_100%)]"
-                }`}
+              }`}
             >
               {/* Sliding Track */}
               <div
-                className="flex items-center gap-3 sm:gap-4 lg:gap-5 transition-transform duration-500 ease-out"
+                className="flex items-center gap-[var(--card-gap)] transition-transform duration-500 ease-out"
                 style={{
-                  transform: `translateX(calc(-${activeIndex} * (145px + 0.75rem)))`,
+                  transform: `translateX(calc(-${activeIndex} * (var(--card-w) + var(--card-gap))))`,
                 }}
               >
-                {featuredMovies.map((movie, index) => {
+                {items.map((item, index) => {
                   const isActive = index === activeIndex;
                   return (
                     <div
-                      key={movie.id}
+                      key={item.id}
                       onClick={() => setActiveIndex(index)}
-                      className={`relative w-[145px] sm:w-[185px] lg:w-[208px] aspect-[2/3] rounded-2xl overflow-hidden shrink-0 cursor-pointer transition-all duration-500 select-none ${isActive
-                          ? "border-2 border-emerald-400 scale-100 z-20 brightness-100"
+                      className={`relative w-[var(--card-w)] aspect-[2/3] rounded-2xl overflow-hidden shrink-0 cursor-pointer transition-all duration-500 select-none ${
+                        isActive
+                          ? "border-2 border-emerald-400 scale-100 z-20 brightness-100 shadow-xl shadow-emerald-950/50"
                           : "border border-white/10 opacity-50 hover:opacity-85 scale-95 z-10 brightness-75 hover:scale-100"
-                        }`}
+                      }`}
                     >
-                      <Image
-                        src={movie.poster}
-                        alt={movie.title}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 640px) 145px, (max-width: 1024px) 185px, 208px"
-                        priority={index === 0}
-                      />
+                      {item.poster ? (
+                        <Image
+                          src={item.poster}
+                          alt={item.title}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 640px) 145px, (max-width: 1024px) 185px, 208px"
+                          priority={index === 0}
+                        />
+                      ) : (
+                        <div className="w-full h-full bg-[#151922] flex items-center justify-center text-xs text-zinc-500">
+                          No Poster
+                        </div>
+                      )}
                       {!isActive && (
                         <div className="absolute inset-0 bg-black/40 hover:bg-black/10 transition-colors" />
                       )}
@@ -316,13 +356,13 @@ export default function FeaturedInZeflix() {
                 })}
               </div>
 
-              {/* Left Edge Dark Shadow Overlay (Chỉ hiện trên Desktop lg+ để không che card trên Mobile/Tablet) */}
+              {/* Left Edge Dark Shadow Overlay */}
               {activeIndex > 0 && (
                 <div className="hidden lg:block absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-black/85 via-black/40 to-transparent z-25 pointer-events-none" />
               )}
 
-              {/* Right Edge Dark Shadow Overlay (Chỉ hiện trên Desktop lg+) */}
-              {activeIndex < featuredMovies.length - 1 && (
+              {/* Right Edge Dark Shadow Overlay */}
+              {activeIndex < items.length - 1 && (
                 <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-black/85 via-black/40 to-transparent z-25 pointer-events-none" />
               )}
 
@@ -335,14 +375,14 @@ export default function FeaturedInZeflix() {
                     handlePrev();
                   }}
                   className="absolute left-2 top-1/2 -translate-y-1/2 z-30 w-9 sm:w-11 h-9 sm:h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
-                  aria-label="Previous featured movie"
+                  aria-label="Previous featured content"
                 >
                   <ChevronLeft className="w-4 sm:w-5 h-4 sm:h-5" />
                 </button>
               )}
 
               {/* Next Slide Button */}
-              {activeIndex < featuredMovies.length - 1 && (
+              {activeIndex < items.length - 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -350,7 +390,7 @@ export default function FeaturedInZeflix() {
                     handleNext();
                   }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 z-30 w-9 sm:w-11 h-9 sm:h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
-                  aria-label="Next featured movie"
+                  aria-label="Next featured content"
                 >
                   <ChevronRight className="w-4 sm:w-5 h-4 sm:h-5" />
                 </button>
