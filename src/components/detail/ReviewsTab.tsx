@@ -24,8 +24,8 @@ export default function ReviewsTab({
   const filteredReviews = useMemo(() => {
     let list = Array.isArray(reviews) ? [...reviews] : [];
     if (starFilter !== "all") {
-      const minStars = Number(starFilter);
-      list = list.filter((r) => r.rating >= minStars);
+      const minScore = Number(starFilter);
+      list = list.filter((r) => Math.round(r.rating * 2) >= minScore);
     }
     if (sortFilter === "highest") {
       list.sort((a, b) => b.rating - a.rating);
@@ -41,21 +41,33 @@ export default function ReviewsTab({
   }, [reviews, starFilter, sortFilter]);
 
   const numRating = Number(averageRating) || 8.0;
-  const ratingOutOf5 = Number((numRating / 2).toFixed(1));
 
-  // Distribution chart bar heights and counts
-  const distribution = [
-    { label: "0.5", count: "0", height: "4%" },
-    { label: "1.0", count: "0", height: "4%" },
-    { label: "1.5", count: "0", height: "4%" },
-    { label: "2.0", count: "0", height: "4%" },
-    { label: "2.5", count: "1", height: "10%" },
-    { label: "3.0", count: "3", height: "25%" },
-    { label: "3.5", count: "1", height: "10%" },
-    { label: "4.0", count: "20", height: "55%" },
-    { label: "4.5", count: "50", height: "100%" },
-    { label: "5.0", count: "16", height: "45%" },
-  ];
+  // Compute dynamic distribution chart based strictly on real reviews
+  const distribution = useMemo(() => {
+    // 10 score buckets on scale 1 to 10
+    const buckets = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+    const counts = buckets.map((score) => {
+      return reviews.filter((r) => {
+        // Convert to scale 1-10 (ReviewItem rating is 0-5)
+        const score10 = Math.min(10, Math.max(1, Math.round(r.rating * 2)));
+        return score10 === score;
+      }).length;
+    });
+
+    const maxCount = Math.max(...counts, 1);
+
+    return buckets.map((score, idx) => {
+      const count = counts[idx];
+      const height = count > 0 ? `${Math.max(18, Math.round((count / maxCount) * 100))}%` : "6%";
+      return {
+        label: String(score),
+        count,
+        height,
+        hasCount: count > 0,
+      };
+    });
+  }, [reviews]);
 
   const visibleReviews = filteredReviews.slice(0, visibleCount);
   const hasMore = filteredReviews.length > visibleCount;
@@ -73,18 +85,21 @@ export default function ReviewsTab({
           {/* Header with Star Score and Total Reviews */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5 text-amber-400 font-black text-xl sm:text-2xl">
-              <Star className="w-5 h-5 fill-amber-400 text-amber-400" />
-              <span>{ratingOutOf5.toFixed(1)}</span>
+              <Star className="w-5 h-5 fill-amber-400 text-amber-400 shrink-0" />
+              <span>{numRating.toFixed(1)}</span>
             </div>
-            <span className="text-xs text-zinc-400 font-medium">
-              {reviews.length > 0 ? `${reviews.length} reviews` : "23 reviews"}
+            <span className="text-[11px] sm:text-xs text-zinc-400 font-normal">
+              {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
             </span>
           </div>
 
           {/* Count Numbers Above Bars */}
           <div className="flex items-center justify-between text-[10px] text-zinc-500 font-medium px-0.5">
             {distribution.map((d) => (
-              <span key={d.label} className="w-4 text-center">
+              <span
+                key={d.label}
+                className={`w-4 text-center ${d.hasCount ? "text-zinc-300 font-semibold" : "text-zinc-600"}`}
+              >
                 {d.count}
               </span>
             ))}
@@ -98,17 +113,22 @@ export default function ReviewsTab({
                 className="flex-1 h-full bg-[#0d0f14] rounded-sm flex items-end overflow-hidden"
               >
                 <div
-                  className="w-full bg-zinc-500 transition-all duration-500 rounded-t-xs"
+                  className={`w-full transition-all duration-500 rounded-t-xs ${
+                    d.hasCount ? "bg-zinc-400" : "bg-zinc-800/40"
+                  }`}
                   style={{ height: d.height }}
                 />
               </div>
             ))}
           </div>
 
-          {/* Scale Numbers Below Bars */}
+          {/* Scale Numbers (1 - 10) Below Bars */}
           <div className="flex items-center justify-between text-[9px] text-zinc-500 font-medium px-0.5">
             {distribution.map((d) => (
-              <span key={d.label} className="w-4 text-center">
+              <span
+                key={d.label}
+                className={`w-4 text-center ${d.hasCount ? "text-zinc-300 font-medium" : "text-zinc-600"}`}
+              >
                 {d.label}
               </span>
             ))}
@@ -129,17 +149,30 @@ export default function ReviewsTab({
                 }}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 transition-colors cursor-pointer"
               >
-                <span>{starFilter === "all" ? "All stars" : `${starFilter}+ stars`}</span>
+                <span>
+                  {starFilter === "all"
+                    ? "All ratings"
+                    : starFilter === "10"
+                      ? "10 rating"
+                      : `${starFilter}+ rating`}
+                </span>
                 <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
               </button>
 
               {isStarOpen && (
-                <div className="absolute left-0 mt-1.5 w-32 bg-[#181a20] rounded-xl shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 border border-white/10">
+                <div className="absolute left-0 mt-1.5 w-32 max-h-56 overflow-y-auto bg-[#181a20] rounded-xl shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 border border-white/10 custom-scrollbar">
                   {[
-                    { label: "All stars", val: "all" },
-                    { label: "4+ stars", val: "4" },
-                    { label: "3+ stars", val: "3" },
-                    { label: "2+ stars", val: "2" },
+                    { label: "All ratings", val: "all" },
+                    { label: "10 rating", val: "10" },
+                    { label: "9+ rating", val: "9" },
+                    { label: "8+ rating", val: "8" },
+                    { label: "7+ rating", val: "7" },
+                    { label: "6+ rating", val: "6" },
+                    { label: "5+ rating", val: "5" },
+                    { label: "4+ rating", val: "4" },
+                    { label: "3+ rating", val: "3" },
+                    { label: "2+ rating", val: "2" },
+                    { label: "1+ rating", val: "1" },
                   ].map((opt) => (
                     <button
                       key={opt.val}
@@ -249,7 +282,7 @@ export default function ReviewsTab({
 
                     <div className="flex items-center gap-1 text-amber-400 font-bold text-xs">
                       <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      <span>{rev.rating.toFixed(1)}</span>
+                      <span>{(rev.rating * 2).toFixed(1)}</span>
                     </div>
                   </div>
                 </div>

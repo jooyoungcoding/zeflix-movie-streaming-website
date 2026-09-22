@@ -1,4 +1,4 @@
-import { fetchFromTMDB } from "./tmdb.client";
+import { fetchFromTMDB, TMDBNotFoundError } from "./tmdb.client";
 import {
   TMDBUpcomingResponse,
   TMDBNowPlayingResponse,
@@ -161,6 +161,9 @@ export async function getMovieDetailsFull(
       language: "en-US",
     });
   } catch (err) {
+    if (err instanceof TMDBNotFoundError) {
+      throw err;
+    }
     // Resilient fallback to basic movie details
     return await fetchFromTMDB<TMDBMovieDetails>(`/movie/${movieId}`, {
       language: "en-US",
@@ -180,6 +183,9 @@ export async function getTVDetailsFull(
       language: "en-US",
     });
   } catch (err) {
+    if (err instanceof TMDBNotFoundError) {
+      throw err;
+    }
     // Resilient fallback to basic TV details
     return await fetchFromTMDB<TMDBTVDetails>(`/tv/${tvId}`, {
       language: "en-US",

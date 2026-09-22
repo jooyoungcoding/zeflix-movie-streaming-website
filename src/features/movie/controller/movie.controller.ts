@@ -6,8 +6,6 @@ import {
   BestMoviesResponse,
   BestTVSeriesResponse,
   BrowseMediaResponse,
-  AwardMoviesResponse,
-  AwardSeriesResponse,
   MovieDetailResponse,
   TVSeriesDetailResponse,
   TVSeasonEpisodesResponse,
@@ -25,8 +23,6 @@ import {
   getBestMoviesService,
   getBestTVSeriesService,
   getBrowseContentService,
-  getAwardMoviesService,
-  getAwardTVSeriesService,
   getMovieDetailService,
   getTVSeriesDetailService,
   getTVSeasonEpisodesService,
@@ -90,24 +86,6 @@ export const getBrowseContentController = async (
     typeParam === "TV Series" ? "TV Series" : "Movies";
   const country = countryParam || "all";
   const items = await getBrowseContentService(type, country, 12);
-  return {
-    items,
-  };
-};
-
-export const getAwardMoviesController = async (
-  limit: number = 10
-): Promise<AwardMoviesResponse> => {
-  const items = await getAwardMoviesService(limit);
-  return {
-    items,
-  };
-};
-
-export const getAwardTVSeriesController = async (
-  limit: number = 10
-): Promise<AwardSeriesResponse> => {
-  const items = await getAwardTVSeriesService(limit);
   return {
     items,
   };

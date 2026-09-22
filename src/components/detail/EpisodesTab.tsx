@@ -20,12 +20,18 @@ export default function EpisodesTab({
   seasons,
   initialEpisodes,
   currentSeasonNumber,
-  activeEpisodeNumber,
-  activeSeasonNumber,
+  activeEpisodeNumber: initialActiveEp,
+  activeSeasonNumber: initialActiveSeason,
 }: EpisodesTabProps) {
   const router = useRouter();
   const [selectedSeason, setSelectedSeason] = useState<number>(
-    activeSeasonNumber || currentSeasonNumber
+    initialActiveSeason || currentSeasonNumber
+  );
+  const [activeEpisode, setActiveEpisode] = useState<number | undefined>(
+    initialActiveEp
+  );
+  const [activeSeason, setActiveSeason] = useState<number | undefined>(
+    initialActiveSeason
   );
   const [episodes, setEpisodes] = useState<EpisodeItem[]>(initialEpisodes);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -40,6 +46,52 @@ export default function EpisodesTab({
   const itemWidth = 310;
   const gap = 20;
   const itemStep = itemWidth + gap;
+
+  // Keep state in sync with props when active season or episode changes
+  useEffect(() => {
+    const s = initialActiveSeason !== undefined ? Number(initialActiveSeason) : Number(currentSeasonNumber);
+    const ep = initialActiveEp !== undefined ? Number(initialActiveEp) : undefined;
+    setActiveEpisode(ep);
+    setActiveSeason(s);
+    setSelectedSeason(s);
+    setEpisodes(initialEpisodes);
+  }, [initialActiveEp, initialActiveSeason, currentSeasonNumber, initialEpisodes]);
+
+  // Listen for real-time episode changes triggered by the video player
+  useEffect(() => {
+    const handleEpisodeChange = async (e: Event) => {
+      const customEvent = e as CustomEvent<{ season: number; episode: number }>;
+      if (!customEvent.detail) return;
+      const newSeason = Number(customEvent.detail.season);
+      const newEpisode = Number(customEvent.detail.episode);
+
+      setActiveEpisode(newEpisode);
+      setActiveSeason(newSeason);
+
+      if (newSeason !== selectedSeason) {
+        setSelectedSeason(newSeason);
+        setIsLoading(true);
+        try {
+          const res = await fetch(`/api/tv/${tvId}/season/${newSeason}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.episodes && Array.isArray(data.episodes)) {
+              setEpisodes(data.episodes);
+            }
+          }
+        } catch (err) {
+          console.error("Error loading new season episodes:", err);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    window.addEventListener("zeflix:episode-changed", handleEpisodeChange);
+    return () => {
+      window.removeEventListener("zeflix:episode-changed", handleEpisodeChange);
+    };
+  }, [tvId, selectedSeason]);
 
   useEffect(() => {
     const updateMaxIndex = () => {
@@ -60,19 +112,15 @@ export default function EpisodesTab({
 
   // If active episode is provided, automatically shift initial view on desktop towards active item
   useEffect(() => {
-    if (
-      activeEpisodeNumber &&
-      activeSeasonNumber &&
-      selectedSeason === activeSeasonNumber
-    ) {
+    if (activeEpisode !== undefined && activeSeason !== undefined && Number(selectedSeason) === Number(activeSeason)) {
       const activeIdx = episodes.findIndex(
-        (e) => e.episodeNumber === activeEpisodeNumber
+        (e) => Number(e.episodeNumber) === Number(activeEpisode)
       );
-      if (activeIdx > 0) {
-        setCurrentIndex((prev) => (prev === 0 ? Math.min(activeIdx, maxIndex) : prev));
+      if (activeIdx >= 0) {
+        setCurrentIndex(Math.min(activeIdx, maxIndex));
       }
     }
-  }, [activeEpisodeNumber, activeSeasonNumber, selectedSeason, episodes, maxIndex]);
+  }, [activeEpisode, activeSeason, selectedSeason, episodes, maxIndex]);
 
   const handleSelectSeason = async (seasonNum: number) => {
     if (seasonNum === selectedSeason) {
@@ -102,8 +150,22 @@ export default function EpisodesTab({
   };
 
   const handleWatchEpisode = (ep: EpisodeItem) => {
-    // Navigate using the actual TMDB season_number and episode_number
-    router.push(`/watch/tv/${tvId}/${ep.seasonNumber}/${ep.episodeNumber}`);
+    // If on watch page, switch episode in-place to preserve fullscreen without unmounting
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/watch")) {
+      window.dispatchEvent(
+        new CustomEvent("zeflix:change-episode", {
+          detail: {
+            season: ep.seasonNumber,
+            episode: ep.episodeNumber,
+          },
+        })
+      );
+      if (!document.fullscreenElement) {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    } else {
+      router.push(`/watch/tv/${tvId}/${ep.seasonNumber}/${ep.episodeNumber}`);
+    }
   };
 
   const handlePrev = () => {
@@ -120,9 +182,8 @@ export default function EpisodesTab({
   // Compute episode display range e.g. "1-9 episodes"
   const episodeRangeText =
     episodes.length > 0
-      ? `${episodes[0].displayEpisodeNumber}-${
-          episodes[episodes.length - 1].displayEpisodeNumber
-        } episodes`
+      ? `${episodes[0].displayEpisodeNumber}-${episodes[episodes.length - 1].displayEpisodeNumber
+      } episodes`
       : "Episodes";
 
   const currentSeasonObj =
@@ -131,14 +192,14 @@ export default function EpisodesTab({
   return (
     <div className="w-full space-y-5">
       {/* Header Row: Episode Range on Left, Season Selector Dropdown on Right */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between relative z-40">
         <h3 className="text-xl sm:text-2xl font-bold text-white tracking-wide font-custom2">
           {episodeRangeText}
         </h3>
 
         {/* Season Selector Dropdown */}
         {seasons.length > 0 && (
-          <div className="relative">
+          <div className="relative z-50">
             <button
               type="button"
               onClick={() => setIsDropdownOpen((prev) => !prev)}
@@ -149,17 +210,16 @@ export default function EpisodesTab({
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-[#191d26] border border-white/10 rounded-xl shadow-2xl py-1.5 z-30 animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-44 bg-[#191d26] border border-white/10 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95">
                 {seasons.map((s) => (
                   <button
                     key={s.id || s.seasonNumber}
                     type="button"
                     onClick={() => handleSelectSeason(s.seasonNumber)}
-                    className={`w-full text-left px-4 py-2 text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-between hover:bg-white/5 ${
-                      s.seasonNumber === selectedSeason
-                        ? "text-emerald-400 font-bold"
-                        : "text-zinc-300 hover:text-white"
-                    }`}
+                    className={`w-full text-left px-4 py-2 text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-between hover:bg-white/5 ${s.seasonNumber === selectedSeason
+                      ? "text-emerald-400 font-bold"
+                      : "text-zinc-300 hover:text-white"
+                      }`}
                   >
                     <span>{s.name}</span>
                     {s.episodeCount > 0 && (
@@ -223,20 +283,19 @@ export default function EpisodesTab({
             >
               {episodes.map((ep) => {
                 const isActive =
-                  activeSeasonNumber !== undefined &&
-                  activeEpisodeNumber !== undefined &&
-                  selectedSeason === activeSeasonNumber &&
-                  ep.episodeNumber === activeEpisodeNumber;
+                  activeSeason !== undefined &&
+                  activeEpisode !== undefined &&
+                  Number(selectedSeason) === Number(activeSeason) &&
+                  Number(ep.episodeNumber) === Number(activeEpisode);
 
                 return (
                   <div
                     key={ep.id || ep.displayEpisodeNumber}
                     onClick={() => handleWatchEpisode(ep)}
-                    className={`group/card relative shrink-0 flex flex-col justify-end aspect-[16/9.5] rounded-2xl overflow-hidden bg-[#12151c] shadow-lg cursor-pointer transition-all duration-300 hover:scale-[1.02] select-none ${
-                      isActive
-                        ? "border-2 border-emerald-500 ring-2 ring-emerald-500/30 shadow-emerald-500/20"
-                        : "border border-transparent hover:border-white/10"
-                    }`}
+                    className={`group/card relative shrink-0 flex flex-col justify-end aspect-[16/9.5] rounded-2xl overflow-hidden bg-[#12151c] shadow-lg cursor-pointer transition-all duration-300 hover:scale-[1.02] select-none ${isActive
+                      ? "border-2 border-emerald-500 ring-2 ring-emerald-500/30 shadow-emerald-500/20"
+                      : "border border-transparent hover:border-white/10"
+                      }`}
                     style={{ width: `${itemWidth}px` }}
                   >
                     {/* Thumbnail Background */}
@@ -269,20 +328,15 @@ export default function EpisodesTab({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 min-w-0">
                           <h4
-                            className={`text-base sm:text-lg font-bold tracking-wide truncate ${
-                              isActive ? "text-emerald-400" : "text-white"
-                            }`}
+                            className={`text-base sm:text-lg font-bold tracking-wide truncate ${isActive ? "text-emerald-400" : "text-white"
+                              }`}
                           >
-                            Chapter {ep.displayEpisodeNumber}
+                            Episode {ep.displayEpisodeNumber}
                           </h4>
-                          {isActive && (
-                            <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-black shrink-0">
-                              Playing
-                            </span>
-                          )}
+
                         </div>
                         {ep.runtime && (
-                          <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/15 px-2.5 py-0.5 rounded-lg border border-emerald-500/30 shrink-0">
+                          <span className="text-xs font-semibold text-gray bg-gray px-2.5 py-0.5 rounded-lg border border-gray-500/30 shrink-0">
                             {ep.runtime}
                           </span>
                         )}

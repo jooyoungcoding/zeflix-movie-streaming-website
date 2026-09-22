@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -29,6 +29,12 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
   const [activeTab, setActiveTab] = useState<"episodes" | "reviews">("episodes");
   const [isTrailerOpen, setIsTrailerOpen] = useState<boolean>(false);
   const [isWatchlist, setIsWatchlist] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    }
+  }, [tv.id]);
 
   const handleWatchNow = () => {
     // Navigate to first episode of active season or season 1 episode 1
@@ -202,13 +208,13 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
 
             {/* Action Buttons Row (Spans Full Width: Left buttons on left, 3 buttons on the far right on desktop; on mobile: Trailer, Download, Copy Link row sits horizontally below Watch Now & Watchlist) */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pt-1 w-full">
-              {/* Left Action Buttons (Row 1 on mobile) */}
+              {/* Left Action Buttons (Row 1 on mobile: Watch Now & Add Watchlist) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto">
                 {/* Watch Now Button */}
                 <button
                   type="button"
                   onClick={handleWatchNow}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-6 sm:px-8 py-3 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-white shrink-0" />
                   <span>Watch Now</span>
@@ -218,12 +224,12 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 <button
                   type="button"
                   onClick={toggleWatchlist}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-white font-custom1 text-sm sm:text-base font-semibold border border-white/10 transition-all cursor-pointer group/fav"
+                  className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[150px] sm:min-w-[170px] inline-flex items-center justify-center gap-2 px-4 sm:px-6 rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-white font-custom1 text-sm sm:text-base font-semibold border border-white/10 transition-all cursor-pointer group/fav"
                 >
                   {isWatchlist ? (
                     <>
                       <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 scale-110 shrink-0 transition-transform" />
-                      <span className="truncate">Added</span>
+                      <span className="truncate">Added to Watchlist</span>
                     </>
                   ) : (
                     <>
@@ -234,14 +240,13 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 </button>
               </div>
 
-              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link nằm ngang bên dưới) */}
+              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link nằm ngang cân xứng) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-start md:justify-end md:ml-auto">
-                {/* Watch Trailer Button */}
                 {tv.trailerId && (
                   <button
                     type="button"
                     onClick={() => setIsTrailerOpen(true)}
-                    className="flex-1 md:flex-initial inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-custom1 text-sm sm:text-base font-semibold backdrop-blur-md transition-all cursor-pointer border border-white/10 shadow-md"
+                    className="flex-1 md:flex-initial h-11 sm:h-12 inline-flex items-center justify-center gap-2 px-4 sm:px-5 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-white font-custom1 text-sm sm:text-base font-semibold backdrop-blur-md transition-all cursor-pointer border border-white/10 shadow-md"
                   >
                     <Tv className="w-4 h-4 text-emerald-400 shrink-0" />
                     <span>Trailer</span>
@@ -252,7 +257,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 <button
                   type="button"
                   onClick={handleDownload}
-                  className="inline-flex items-center justify-center p-3 rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer shadow-md shrink-0"
+                  className="w-11 sm:w-12 h-11 sm:h-12 inline-flex items-center justify-center rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer shadow-md shrink-0"
                   title="Download"
                   aria-label="Download"
                 >
@@ -263,7 +268,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="inline-flex items-center justify-center p-3 rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer shadow-md shrink-0"
+                  className="w-11 sm:w-12 h-11 sm:h-12 inline-flex items-center justify-center rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer shadow-md shrink-0"
                   title="Copy Link / Share"
                   aria-label="Copy Link"
                 >
@@ -290,15 +295,14 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
         {/* Top Cast Section */}
         <CastSection cast={tv.cast} />
 
-        {/* Navigation Tabs: TV Series only has Episodes (default) and Reviews (No News, No Universe) */}
+        {/* Navigation Tabs: Episodes & Reviews */}
         <div className="w-full border-b border-white/10 pb-1">
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-8 font-custom2">
             <button
               type="button"
               onClick={() => setActiveTab("episodes")}
-              className={`relative pb-3 text-sm sm:text-base font-bold tracking-wide transition-colors cursor-pointer ${
-                activeTab === "episodes" ? "text-white" : "text-zinc-400 hover:text-white"
-              }`}
+              className={`relative pb-3 text-sm sm:text-base font-bold font-custom2 tracking-wide transition-colors cursor-pointer ${activeTab === "episodes" ? "text-white" : "text-zinc-400 hover:text-white"
+                }`}
             >
               <span>Episodes</span>
               {activeTab === "episodes" && (
@@ -309,9 +313,8 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
             <button
               type="button"
               onClick={() => setActiveTab("reviews")}
-              className={`relative pb-3 text-sm sm:text-base font-bold tracking-wide transition-colors cursor-pointer ${
-                activeTab === "reviews" ? "text-white" : "text-zinc-400 hover:text-white"
-              }`}
+              className={`relative pb-3 text-sm sm:text-base font-bold font-custom2 tracking-wide transition-colors cursor-pointer ${activeTab === "reviews" ? "text-white" : "text-zinc-400 hover:text-white"
+                }`}
             >
               <span>Reviews</span>
               {activeTab === "reviews" && (
