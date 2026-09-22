@@ -43,7 +43,8 @@ export class VideoService {
   async getEpisodeSource(
     tmdbId: string,
     seasonNumber: number,
-    episodeNumber: number
+    episodeNumber: number,
+    hasNextEpisode: boolean = true
   ): Promise<VideoSource | null> {
     if (!tmdbId || typeof tmdbId !== "string") {
       return null;
@@ -58,7 +59,8 @@ export class VideoService {
     return this.activeProvider.getEpisodeSource(
       tmdbId.trim(),
       seasonNumber,
-      episodeNumber
+      episodeNumber,
+      hasNextEpisode
     );
   }
 }

@@ -74,32 +74,6 @@ export interface MediaItem {
   backdrop: string;
 }
 
-export interface AwardMovie {
-  id: string;
-  tag: string;
-  title: string;
-  rating: string;
-  duration: string;
-  year: string;
-  genres: string[];
-  certificate: string;
-  description: string;
-  backdrop: string;
-}
-
-export interface AwardSeries {
-  id: string;
-  tag: string;
-  title: string;
-  rating: string;
-  duration: string;
-  year: string;
-  genres: string[];
-  certificate: string;
-  description: string;
-  backdrop: string;
-}
-
 export interface CastMember {
   id: string;
   name: string;

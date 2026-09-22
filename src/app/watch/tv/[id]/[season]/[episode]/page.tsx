@@ -31,11 +31,31 @@ export default async function TVWatchPage({ params }: PageProps) {
     (e) => e.seasonNumber === sNum && e.episodeNumber === epNum
   );
 
-  // Resolve video source through abstraction
+  // Determine if next episode exists
+  let nextEpisodeUrl: string | undefined = undefined;
+  const currentEpIndex = tv.episodes.findIndex(
+    (e) => e.seasonNumber === sNum && e.episodeNumber === epNum
+  );
+
+  if (currentEpIndex !== -1 && currentEpIndex < tv.episodes.length - 1) {
+    const nextEp = tv.episodes[currentEpIndex + 1];
+    nextEpisodeUrl = `/watch/tv/${id}/${nextEp.seasonNumber}/${nextEp.episodeNumber}`;
+  } else {
+    // Check if next season exists
+    const nextSeason = tv.seasons.find((s) => s.seasonNumber === sNum + 1);
+    if (nextSeason && nextSeason.episodeCount > 0) {
+      nextEpisodeUrl = `/watch/tv/${id}/${sNum + 1}/1`;
+    }
+  }
+
+  const hasNextInSameSeason = currentEpIndex !== -1 && currentEpIndex < tv.episodes.length - 1;
+
+  // Resolve video source through abstraction (VidLink internal button only supports same-season progression)
   const videoSource = await defaultVideoService.getEpisodeSource(
     id,
     sNum,
-    epNum
+    epNum,
+    hasNextInSameSeason
   );
 
   return (
@@ -57,16 +77,23 @@ export default async function TVWatchPage({ params }: PageProps) {
           </div>
         </div>
 
-        {/* Video Player Container */}
+        {/* Video Player Container with Next Episode Support */}
         <VideoPlayer
           source={videoSource}
           title={`${tv.title} - S${sNum}E${epNum}`}
           poster={currentEp?.still || tv.backdrop || tv.poster}
+          nextEpisodeUrl={nextEpisodeUrl}
+          tvId={id}
+          currentSeason={sNum}
+          currentEpisode={epNum}
+          seasons={tv.seasons}
+          episodes={tv.episodes}
         />
 
         {/* Reused EpisodesTab Section (Active episode highlighted with green border) */}
         <div className="w-full pt-2">
           <EpisodesTab
+            key={`episodes-tab-${id}`}
             tvId={id}
             seasons={tv.seasons}
             initialEpisodes={tv.episodes}

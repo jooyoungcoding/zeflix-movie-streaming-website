@@ -58,6 +58,7 @@ export interface VideoProvider {
   getEpisodeSource(
     tmdbId: string,
     seasonNumber: number,
-    episodeNumber: number
+    episodeNumber: number,
+    hasNextEpisode?: boolean
   ): Promise<VideoSource | null>;
 }

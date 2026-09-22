@@ -5,8 +5,6 @@ import Image from "next/image";
 import {
   Film,
   Bookmark,
-  Volume2,
-  VolumeX,
   ChevronLeft,
   ChevronRight,
   X,
@@ -21,7 +19,6 @@ export default function HeroSlider() {
   const [movies, setMovies] = useState<UpcomingMovie[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [isMuted, setIsMuted] = useState<boolean>(true);
   const [isPaused, setIsPaused] = useState<boolean>(false);
   const [activeTrailerId, setActiveTrailerId] = useState<string | null>(null);
   const [watchlist, setWatchlist] = useState<Record<string, boolean>>({});
@@ -112,22 +109,6 @@ export default function HeroSlider() {
         },
       });
     }
-  };
-
-  const toggleMute = () => {
-    const nextState = !isMuted;
-    setIsMuted(nextState);
-
-    toast(nextState ? "Audio Muted" : "Audio Unmuted", {
-      id: "audio-toggle",
-      icon: nextState ? "🔇" : "🔊",
-      style: {
-        borderRadius: "12px",
-        background: "#161922",
-        color: "#fff",
-        border: "1px solid rgba(255,255,255,0.15)",
-      },
-    });
   };
 
   if (isLoading && movies.length === 0) {
@@ -286,7 +267,7 @@ export default function HeroSlider() {
             </div>
           </div>
 
-          {/* Right/Bottom Controls (Pagination Dots + Audio Toggle) */}
+          {/* Right/Bottom Controls (Pagination Dots) */}
           <div className="flex items-center gap-3 sm:gap-4 shrink-0 self-start lg:self-end pt-2 lg:pt-0 z-30">
             {/* Pagination Dots */}
             {movies.length > 1 && (
@@ -308,20 +289,6 @@ export default function HeroSlider() {
                 })}
               </div>
             )}
-
-            {/* Audio Mute / Unmute Button */}
-            <button
-              onClick={toggleMute}
-              className="w-10 sm:w-11 h-10 sm:h-11 rounded-2xl bg-[#1c202a]/80 hover:bg-[#282e3c] backdrop-blur-md border border-white/15 text-white flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
-              aria-label="Toggle Audio"
-              title={isMuted ? "Unmute Audio" : "Mute Audio"}
-            >
-              {isMuted ? (
-                <VolumeX className="w-5 h-5 text-zinc-300" />
-              ) : (
-                <Volume2 className="w-5 h-5 text-emerald-400" />
-              )}
-            </button>
           </div>
         </div>
       </div>

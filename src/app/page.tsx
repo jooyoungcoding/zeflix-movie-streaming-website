@@ -6,8 +6,6 @@ import FeaturedInZeflix from "@/components/FeaturedInZeflix";
 import MoviesSection from "@/components/MoviesSection";
 import SeriesSection from "@/components/SeriesSection";
 import BrowseByCountry from "@/components/BrowseByCountry";
-import AwardsSection from "@/components/AwardsSection";
-
 export default function Home() {
   return (
     <main className="min-h-screen bg-black text-white flex flex-col selection:bg-emerald-500 selection:text-white overflow-x-hidden pb-20">
@@ -34,9 +32,6 @@ export default function Home() {
 
       {/* Browse By Country Section */}
       <BrowseByCountry />
-
-      {/* Awards Section: Movies on Awards (Left) & TV Series on Awards (Right) */}
-      <AwardsSection />
     </main>
   );
 }

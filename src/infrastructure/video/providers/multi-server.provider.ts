@@ -17,25 +17,25 @@ export class MultiServerProvider implements VideoProvider {
 
     const servers: VideoServerOption[] = [
       {
-        id: "server-vidsrc-to",
-        name: "Server 1",
-        url: `https://vidsrc.to/embed/movie/${cleanId}`,
-      },
-      {
         id: "server-vidlink",
-        name: "Server 2",
-        url: `https://vidlink.pro/movie/${cleanId}?primaryColor=10b981`,
+        name: "Server 1",
+        url: `https://vidlink.pro/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
         isDefault: true,
       },
       {
         id: "server-vidsrc-cc",
-        name: "Server 3",
-        url: `https://vidsrc.cc/v2/embed/movie/${cleanId}`,
+        name: "Server 2",
+        url: `https://vidsrc.cc/v2/embed/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
       },
       {
         id: "server-autoembed",
+        name: "Server 3",
+        url: `https://player.autoembed.cc/embed/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
+      },
+      {
+        id: "server-vidsrc-to",
         name: "Server 4",
-        url: `https://player.autoembed.cc/embed/movie/${cleanId}`,
+        url: `https://vidsrc.to/embed/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
       },
     ];
 
@@ -53,35 +53,37 @@ export class MultiServerProvider implements VideoProvider {
   async getEpisodeSource(
     tmdbId: string,
     seasonNumber: number,
-    episodeNumber: number
+    episodeNumber: number,
+    hasNextEpisode: boolean = true
   ): Promise<VideoSource | null> {
     const cleanId = this.sanitizeTmdbId(tmdbId);
     if (!cleanId) return null;
 
     const s = Math.max(1, Math.floor(seasonNumber));
     const ep = Math.max(1, Math.floor(episodeNumber));
+    const nextBtnParam = hasNextEpisode ? "nextbutton=true" : "nextbutton=false";
 
     const servers: VideoServerOption[] = [
       {
         id: "server-vidlink",
         name: "Server 1",
-        url: `https://vidlink.pro/tv/${cleanId}/${s}/${ep}?primaryColor=10b981`,
+        url: `https://vidlink.pro/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true&nextbutton=false`,
         isDefault: true,
       },
       {
         id: "server-vidsrc-cc",
         name: "Server 2",
-        url: `https://vidsrc.cc/v2/embed/tv/${cleanId}/${s}/${ep}`,
+        url: `https://vidsrc.cc/v2/embed/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`,
       },
       {
         id: "server-autoembed",
         name: "Server 3",
-        url: `https://player.autoembed.cc/embed/tv/${cleanId}/${s}/${ep}`,
+        url: `https://player.autoembed.cc/embed/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`,
       },
       {
         id: "server-vidsrc-to",
         name: "Server 4",
-        url: `https://vidsrc.to/embed/tv/${cleanId}/${s}/${ep}`,
+        url: `https://vidsrc.to/embed/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`,
       },
     ];
 

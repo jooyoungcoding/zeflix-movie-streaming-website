@@ -12,8 +12,6 @@ import {
   findDiscoverTVFromTMDB,
   findTopRatedMoviesFromTMDB,
   findTopRatedTVFromTMDB,
-  findWinningMovieAwardsFromDB,
-  findWinningTVShowAwardsFromDB,
   findMovieDetailsFullFromTMDB,
   findTVDetailsFullFromTMDB,
   findTVSeasonDetailsFromTMDB,
@@ -32,8 +30,6 @@ import {
   SeriesItem,
   MediaType,
   MediaItem,
-  AwardMovie,
-  AwardSeries,
   MovieDetail,
   TVSeriesDetail,
   EpisodeItem,
@@ -1007,240 +1003,6 @@ export const getBrowseContentService = async (
 };
 
 /**
- * Strict validator to check if an award record is a WINNER (not a nominee, shortlisted, etc.)
- */
-export function isAwardWinner(result?: string | null): boolean {
-  if (!result) return false;
-  const normalized = result.trim().toLowerCase();
-  if (
-    normalized.includes("nominee") ||
-    normalized.includes("nomination") ||
-    normalized.includes("candidate") ||
-    normalized.includes("shortlist") ||
-    normalized.includes("đề cử")
-  ) {
-    return false;
-  }
-  return normalized === "winner" || normalized === "won" || normalized.includes("win");
-}
-
-/**
- * Service to fetch and prepare Award-Winning Movies from Supabase + TMDB metadata
- */
-export const getAwardMoviesService = async (
-  limit: number = 10
-): Promise<AwardMovie[]> => {
-  // Query Supabase for winning movie award records
-  const rawAwards = await findWinningMovieAwardsFromDB();
-  if (!rawAwards || rawAwards.length === 0) {
-    return [];
-  }
-
-  // Filter strictly for winners only and collect unique TMDB IDs to avoid duplicate cards
-  const uniqueMovieAwards = new Map<
-    number,
-    { tmdbId: number; tag: string; year?: number | null; fallbackTitle?: string }
-  >();
-
-  for (const record of rawAwards) {
-    if (!isAwardWinner(record.result)) {
-      continue;
-    }
-
-    const movieRelation = Array.isArray(record.movies)
-      ? record.movies[0]
-      : record.movies;
-    const tmdbId = movieRelation?.tmdb_id;
-
-    if (!tmdbId || isNaN(Number(tmdbId))) {
-      continue;
-    }
-
-    const numTmdbId = Number(tmdbId);
-    if (!uniqueMovieAwards.has(numTmdbId)) {
-      uniqueMovieAwards.set(numTmdbId, {
-        tmdbId: numTmdbId,
-        tag: record.category || record.award_name,
-        year: record.year,
-        fallbackTitle: movieRelation?.title,
-      });
-    }
-
-    if (uniqueMovieAwards.size >= limit) {
-      break;
-    }
-  }
-
-  const candidateList = Array.from(uniqueMovieAwards.values());
-  if (candidateList.length === 0) {
-    return [];
-  }
-
-  // Enrich metadata via TMDB with controlled parallel requests and resilient error handling
-  const movieResults = await Promise.all(
-    candidateList.map(async (candidate) => {
-      try {
-        const details = await findMovieDetailsWithReleaseDatesFromTMDB(
-          candidate.tmdbId
-        );
-
-        if (!details || !details.id) {
-          return null;
-        }
-
-        const title = details.title || candidate.fallbackTitle || "";
-        const rating =
-          typeof details.vote_average === "number" && details.vote_average > 0
-            ? details.vote_average.toFixed(1)
-            : "0.0";
-        const duration = formatDuration(details.runtime);
-        const year = details.release_date
-          ? details.release_date.slice(0, 4)
-          : candidate.year
-            ? String(candidate.year)
-            : "";
-        const genres = (details.genres || [])
-          .map((g) => g.name)
-          .filter(Boolean);
-        const certificate = extractMovieCertification(details);
-        const description = details.overview || "";
-        const backdrop = details.backdrop_path
-          ? `https://image.tmdb.org/t/p/original${details.backdrop_path}`
-          : "";
-
-        const item: AwardMovie = {
-          id: String(details.id),
-          tag: candidate.tag,
-          title,
-          rating,
-          duration,
-          year,
-          genres,
-          certificate,
-          description,
-          backdrop,
-        };
-
-        return item;
-      } catch {
-        // Skip individual failed TMDB items gracefully
-        return null;
-      }
-    })
-  );
-
-  return movieResults.filter((item): item is AwardMovie => item !== null);
-};
-
-/**
- * Service to fetch and prepare Award-Winning TV Series from Supabase + TMDB metadata
- */
-export const getAwardTVSeriesService = async (
-  limit: number = 10
-): Promise<AwardSeries[]> => {
-  // Query Supabase for winning TV show award records
-  const rawAwards = await findWinningTVShowAwardsFromDB();
-  if (!rawAwards || rawAwards.length === 0) {
-    return [];
-  }
-
-  // Filter strictly for winners only and collect unique TMDB IDs to avoid duplicate cards
-  const uniqueTVAwards = new Map<
-    number,
-    { tmdbId: number; tag: string; year?: number | null; fallbackTitle?: string }
-  >();
-
-  for (const record of rawAwards) {
-    if (!isAwardWinner(record.result)) {
-      continue;
-    }
-
-    const tvRelation = Array.isArray(record.tv_shows)
-      ? record.tv_shows[0]
-      : record.tv_shows;
-    const tmdbId = tvRelation?.tmdb_id;
-
-    if (!tmdbId || isNaN(Number(tmdbId))) {
-      continue;
-    }
-
-    const numTmdbId = Number(tmdbId);
-    if (!uniqueTVAwards.has(numTmdbId)) {
-      uniqueTVAwards.set(numTmdbId, {
-        tmdbId: numTmdbId,
-        tag: record.category || record.award_name,
-        year: record.year,
-        fallbackTitle: tvRelation?.name,
-      });
-    }
-
-    if (uniqueTVAwards.size >= limit) {
-      break;
-    }
-  }
-
-  const candidateList = Array.from(uniqueTVAwards.values());
-  if (candidateList.length === 0) {
-    return [];
-  }
-
-  // Enrich metadata via TMDB with controlled parallel requests and resilient error handling
-  const tvResults = await Promise.all(
-    candidateList.map(async (candidate) => {
-      try {
-        const details = await findTVDetailsWithRatingsFromTMDB(candidate.tmdbId);
-
-        if (!details || !details.id) {
-          return null;
-        }
-
-        const title = details.name || candidate.fallbackTitle || "";
-        const rating =
-          typeof details.vote_average === "number" && details.vote_average > 0
-            ? details.vote_average.toFixed(1)
-            : "0.0";
-        const episodeRuntime =
-          details.episode_run_time?.[0] || details.last_episode_to_air?.runtime;
-        const duration = formatDuration(episodeRuntime);
-        const year = details.first_air_date
-          ? details.first_air_date.slice(0, 4)
-          : candidate.year
-            ? String(candidate.year)
-            : "";
-        const genres = (details.genres || [])
-          .map((g) => g.name)
-          .filter(Boolean);
-        const certificate = extractTVCertification(details);
-        const description = details.overview || "";
-        const backdrop = details.backdrop_path
-          ? `https://image.tmdb.org/t/p/original${details.backdrop_path}`
-          : "";
-
-        const item: AwardSeries = {
-          id: String(details.id),
-          tag: candidate.tag,
-          title,
-          rating,
-          duration,
-          year,
-          genres,
-          certificate,
-          description,
-          backdrop,
-        };
-
-        return item;
-      } catch {
-        // Skip individual failed TMDB items gracefully
-        return null;
-      }
-    })
-  );
-
-  return tvResults.filter((item): item is AwardSeries => item !== null);
-};
-
-/**
  * Maps TMDB credits to application CastMember model
  */
 export function mapCreditsToCast(credits?: {
@@ -1380,8 +1142,15 @@ export const getMovieDetailService = async (
       reviews,
       type: "Movie",
     };
-  } catch (err) {
-    console.error("Error fetching movie detail:", err);
+  } catch (err: unknown) {
+    const isNotFound =
+      err instanceof Error &&
+      (err.name === "TMDBNotFoundError" ||
+        err.message.includes("404") ||
+        err.message.includes("could not be found"));
+    if (!isNotFound) {
+      console.error("Error fetching movie detail:", err);
+    }
     return null;
   }
 };
@@ -1494,8 +1263,15 @@ export const getTVSeriesDetailService = async (
       reviews,
       type: "TV Series",
     };
-  } catch (err) {
-    console.error("Error fetching TV series detail:", err);
+  } catch (err: unknown) {
+    const isNotFound =
+      err instanceof Error &&
+      (err.name === "TMDBNotFoundError" ||
+        err.message.includes("404") ||
+        err.message.includes("could not be found"));
+    if (!isNotFound) {
+      console.error("Error fetching TV series detail:", err);
+    }
     return null;
   }
 };
