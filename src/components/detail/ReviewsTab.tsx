@@ -40,7 +40,8 @@ export default function ReviewsTab({
     return list;
   }, [reviews, starFilter, sortFilter]);
 
-  const numRating = Number(averageRating) || 8.0;
+  const parsed = Number(averageRating);
+  const numRating = !isNaN(parsed) ? parsed : 0;
 
   // Compute dynamic distribution chart based strictly on real reviews
   const distribution = useMemo(() => {

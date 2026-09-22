@@ -19,6 +19,12 @@ import EpisodesTab from "./EpisodesTab";
 import ReviewsTab from "./ReviewsTab";
 import SimilarContentSection from "./SimilarContentSection";
 import TrailerModal from "./TrailerModal";
+import {
+  requestCheckWatchlistStatus,
+  requestToggleWatchlist,
+} from "@/features/watchlist/api/watchlist.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useAuthModalStore } from "@/store/auth-modal.store";
 
 interface TVSeriesDetailViewProps {
   tv: TVSeriesDetail;
@@ -29,11 +35,39 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
   const [activeTab, setActiveTab] = useState<"episodes" | "reviews">("episodes");
   const [isTrailerOpen, setIsTrailerOpen] = useState<boolean>(false);
   const [isWatchlist, setIsWatchlist] = useState<boolean>(false);
+  const [isToggling, setIsToggling] = useState<boolean>(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     }
+  }, [tv.id]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function checkStatus() {
+      const userId = useAuthStore.getState().user_id;
+      if (!userId) {
+        setIsWatchlist(false);
+        return;
+      }
+
+      try {
+        const tmdbId = parseInt(tv.id, 10);
+        if (!isNaN(tmdbId)) {
+          const res = await requestCheckWatchlistStatus(tmdbId, "tv");
+          if (isMounted && res.success) {
+            setIsWatchlist(res.isAdded);
+          }
+        }
+      } catch {
+        // Not logged in or error
+      }
+    }
+    checkStatus();
+    return () => {
+      isMounted = false;
+    };
   }, [tv.id]);
 
   const handleWatchNow = () => {
@@ -44,31 +78,70 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
     router.push(`/watch/tv/${tv.id}/${sNum}/${epNum}`);
   };
 
-  const toggleWatchlist = () => {
+  const toggleWatchlist = async () => {
+    if (isToggling) return;
+    const userId = useAuthStore.getState().user_id;
+    if (!userId) {
+      useAuthModalStore.getState().openModal({
+        title: "Sign in to use Watchlist",
+        description: `Please sign in or register an account to add "${tv.title}" to your watchlist.`,
+      });
+      return;
+    }
+
+    const tmdbId = parseInt(tv.id, 10);
+    if (isNaN(tmdbId)) return;
+
     const nextState = !isWatchlist;
     setIsWatchlist(nextState);
-    if (nextState) {
-      toast.success(`Added "${tv.title}" to Watchlist!`, {
-        id: `fav-${tv.id}`,
-        icon: "🔖",
-        duration: 2500,
-        style: {
-          background: "#12151c",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.1)",
-        },
+    setIsToggling(true);
+
+    try {
+      const res = await requestToggleWatchlist({
+        tmdb_id: tmdbId,
+        type: "tv",
+        title: tv.title,
+        poster_path: tv.poster,
+        backdrop_path: tv.backdrop,
+        vote_average: parseFloat(tv.rating) || 0,
+        release_date: tv.year,
+        overview: tv.description,
+        action: nextState ? "add" : "remove",
       });
-    } else {
-      toast(`Removed "${tv.title}" from Watchlist`, {
-        id: `fav-${tv.id}`,
-        icon: "🗑️",
-        duration: 2000,
-        style: {
-          background: "#12151c",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.1)",
-        },
+
+      if (res.success) {
+        setIsWatchlist(res.data.isAdded);
+        if (res.data.isAdded) {
+          toast.success(`Added "${tv.title}" to Watchlist!`, {
+            id: `fav-${tv.id}`,
+            icon: "🔖",
+            duration: 2500,
+            style: {
+              background: "#12151c",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.1)",
+            },
+          });
+        } else {
+          toast(`Removed "${tv.title}" from Watchlist`, {
+            id: `fav-${tv.id}`,
+            icon: "🗑️",
+            duration: 2000,
+            style: {
+              background: "#12151c",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.1)",
+            },
+          });
+        }
+      }
+    } catch (err: any) {
+      setIsWatchlist(!nextState);
+      toast.error(err.message || "Failed to update watchlist", {
+        id: `fav-err-${tv.id}`,
       });
+    } finally {
+      setIsToggling(false);
     }
   };
 
@@ -102,7 +175,10 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-emerald-500 selection:text-white pb-24">
+    <div
+      className="min-h-screen bg-black text-white selection:bg-emerald-500 selection:text-white pb-24 preserve-dark"
+      data-preserve-dark="true"
+    >
       {/* Hero Backdrop Section */}
       <div className="relative w-full min-h-[520px] sm:min-h-[580px] lg:min-h-[640px] flex flex-col">
         {/* Full-width Background Image */}
@@ -210,15 +286,26 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pt-1 w-full">
               {/* Left Action Buttons (Row 1 on mobile: Watch Now & Add Watchlist) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto">
-                {/* Watch Now Button */}
-                <button
-                  type="button"
-                  onClick={handleWatchNow}
-                  className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-white shrink-0" />
-                  <span>Watch Now</span>
-                </button>
+                {/* Watch Now Button (Hidden for upcoming / unreleased TV series) */}
+                {!(
+                  tv.isUpcoming ??
+                  (Boolean(tv.releaseDate && tv.releaseDate > new Date().toISOString().split("T")[0]) ||
+                   Boolean(
+                     tv.status &&
+                     !["returning series", "ended", "canceled", "released"].includes(
+                       tv.status.toLowerCase()
+                     )
+                   ))
+                ) && (
+                  <button
+                    type="button"
+                    onClick={handleWatchNow}
+                    className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                  >
+                    <Play className="w-4 h-4 fill-white shrink-0" />
+                    <span>Watch Now</span>
+                  </button>
+                )}
 
                 {/* Watchlist Bookmark Button */}
                 <button

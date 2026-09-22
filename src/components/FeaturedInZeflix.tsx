@@ -307,13 +307,12 @@ export default function FeaturedInZeflix() {
           <div className="order-1 lg:order-2 lg:col-span-5 relative flex items-center justify-start lg:justify-end py-1 w-full overflow-hidden">
             {/* Carousel Viewport with desktop dynamic sliding mask */}
             <div
-              className={`relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300 ${
-                activeIndex > 0 && activeIndex < items.length - 1
+              className={`relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300 ${activeIndex > 0 && activeIndex < items.length - 1
                   ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_86%,transparent_100%)]"
                   : activeIndex > 0
                     ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_100%)]"
                     : "lg:[mask-image:linear-gradient(to_right,black_0%,black_86%,transparent_100%)]"
-              }`}
+                }`}
             >
               {/* Sliding Track */}
               <div
@@ -328,11 +327,10 @@ export default function FeaturedInZeflix() {
                     <div
                       key={item.id}
                       onClick={() => setActiveIndex(index)}
-                      className={`relative w-[var(--card-w)] aspect-[2/3] rounded-2xl overflow-hidden shrink-0 cursor-pointer transition-all duration-500 select-none ${
-                        isActive
+                      className={`relative w-[var(--card-w)] aspect-[2/3] rounded-2xl overflow-hidden shrink-0 cursor-pointer transition-all duration-500 select-none ${isActive
                           ? "border-2 border-emerald-400 scale-100 z-20 brightness-100 shadow-xl shadow-emerald-950/50"
                           : "border border-white/10 opacity-50 hover:opacity-85 scale-95 z-10 brightness-75 hover:scale-100"
-                      }`}
+                        }`}
                     >
                       {item.poster ? (
                         <Image

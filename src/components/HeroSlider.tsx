@@ -2,16 +2,24 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
-  Film,
+  Play,
   Bookmark,
   ChevronLeft,
   ChevronRight,
+  Film,
   X,
   Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { UpcomingMovie } from "@/domain/movie/movie.types";
+import {
+  requestGetWatchlist,
+  requestToggleWatchlist,
+} from "@/features/watchlist/api/watchlist.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useAuthModalStore } from "@/store/auth-modal.store";
 
 export type MovieSlide = UpcomingMovie;
 
@@ -40,7 +48,7 @@ export default function HeroSlider() {
           setMovies(data.movies);
         }
       } catch (err) {
-        console.error("Error fetching hero upcoming movies:", err);
+        console.error("Error fetching upcoming movies:", err);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -48,7 +56,26 @@ export default function HeroSlider() {
       }
     }
 
+    async function fetchUserWatchlist() {
+      const userId = useAuthStore.getState().user_id;
+      if (!userId) return;
+
+      try {
+        const res = await requestGetWatchlist();
+        if (isMounted && res.success && res.data) {
+          const map: Record<string, boolean> = {};
+          res.data.forEach((item) => {
+            map[item.content.tmdb_id] = true;
+          });
+          setWatchlist(map);
+        }
+      } catch {
+        // User not logged in, ignore
+      }
+    }
+
     fetchUpcomingMovies();
+    fetchUserWatchlist();
 
     return () => {
       isMounted = false;
@@ -80,33 +107,70 @@ export default function HeroSlider() {
     setCurrentIndex((prev) => (prev - 1 + movies.length) % movies.length);
   };
 
-  const toggleWatchlist = (movie: UpcomingMovie) => {
+  const toggleWatchlist = async (movie: UpcomingMovie) => {
+    const userId = useAuthStore.getState().user_id;
+    if (!userId) {
+      useAuthModalStore.getState().openModal({
+        title: "Sign in to use Watchlist",
+        description: `Please sign in or register an account to add "${movie.title}" to your watchlist.`,
+      });
+      return;
+    }
+
     const isCurrentlyAdded = !!watchlist[movie.id];
     const willBeAdded = !isCurrentlyAdded;
+    const tmdbId = parseInt(String(movie.id), 10);
+    if (isNaN(tmdbId)) return;
 
     setWatchlist((prev) => ({ ...prev, [movie.id]: willBeAdded }));
 
-    if (willBeAdded) {
-      toast.success(`Added "${movie.title}" to Watchlist!`, {
-        id: `watchlist-${movie.id}`,
-        icon: "🔖",
-        style: {
-          borderRadius: "12px",
-          background: "#161922",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.15)",
-        },
+    try {
+      const res = await requestToggleWatchlist({
+        tmdb_id: tmdbId,
+        type: "movie",
+        title: movie.title,
+        poster_path: null,
+        backdrop_path: movie.backdrop,
+        vote_average: 0,
+        release_date: movie.year,
+        overview: movie.description,
+        action: willBeAdded ? "add" : "remove",
       });
-    } else {
-      toast(`Removed "${movie.title}" from Watchlist`, {
-        id: `watchlist-${movie.id}`,
-        icon: "🗑️",
-        style: {
-          borderRadius: "12px",
-          background: "#161922",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.15)",
-        },
+
+      if (res.success) {
+        setWatchlist((prev) => ({
+          ...prev,
+          [movie.id]: res.data.isAdded,
+        }));
+
+        if (res.data.isAdded) {
+          toast.success(`Added "${movie.title}" to Watchlist!`, {
+            id: `watchlist-${movie.id}`,
+            icon: "🔖",
+            style: {
+              borderRadius: "12px",
+              background: "#161922",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.15)",
+            },
+          });
+        } else {
+          toast(`Removed "${movie.title}" from Watchlist`, {
+            id: `watchlist-${movie.id}`,
+            icon: "🗑️",
+            style: {
+              borderRadius: "12px",
+              background: "#161922",
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.15)",
+            },
+          });
+        }
+      }
+    } catch (err: any) {
+      setWatchlist((prev) => ({ ...prev, [movie.id]: isCurrentlyAdded }));
+      toast.error(err.message || "Failed to update watchlist", {
+        id: `watchlist-err-${movie.id}`,
       });
     }
   };
@@ -150,7 +214,8 @@ export default function HeroSlider() {
 
   return (
     <div
-      className="relative w-full h-[92vh] min-h-[620px] max-h-[960px] overflow-hidden select-none"
+      className="relative w-full h-[92vh] min-h-[620px] max-h-[960px] overflow-hidden select-none preserve-dark"
+      data-preserve-dark="true"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
@@ -161,9 +226,8 @@ export default function HeroSlider() {
         return (
           <div
             key={movie.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
-            }`}
+            className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${isActive ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
+              }`}
           >
             {/* High-res Movie Backdrop Image with Cinematic Ken Burns Zoom */}
             <div className="relative w-full h-full">
@@ -173,9 +237,8 @@ export default function HeroSlider() {
                   alt={movie.title}
                   fill
                   priority={index === 0}
-                  className={`object-cover object-center transition-transform duration-[4500ms] ease-out ${
-                    isActive ? "scale-108" : "scale-100"
-                  }`}
+                  className={`object-cover object-center transition-transform duration-[4500ms] ease-out ${isActive ? "scale-108" : "scale-100"
+                    }`}
                   sizes="100vw"
                 />
               ) : (
@@ -234,20 +297,24 @@ export default function HeroSlider() {
               </p>
             )}
 
-            {/* Action Buttons */}
-            <div className="animate-hero-buttons flex flex-wrap items-center gap-3 sm:gap-3.5 pt-1 sm:pt-2 font-custom1">
-              {/* Watch Trailer Button (Green) - Displayed only if trailerId is present */}
-              {hasTrailer && (
-                <button
-                  onClick={() => setActiveTrailerId(currentMovie.trailerId)}
-                  className="font-custom1 inline-flex items-center gap-2 px-5 sm:px-6 lg:px-7 py-2.5 sm:py-3 rounded-xl bg-[#489d6e] hover:bg-[#3b875d] text-white font-semibold text-xs sm:text-sm lg:text-base transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer shadow-lg shadow-emerald-950/40"
+            {/* Action Buttons: Watch Now | Watchlist | Trailer */}
+            <div className="animate-hero-buttons flex flex-wrap items-center gap-3 sm:gap-3.5 pt-1 sm:pt-2">
+              {/* Watch Now — only shown if already released */}
+              {currentMovie.tag === "Now Playing" && (
+                <Link
+                  href={
+                    currentMovie.media_type === "tv"
+                      ? `/tv/${currentMovie.id}`
+                      : `/movie/${currentMovie.id}`
+                  }
+                  className="font-custom1 inline-flex items-center gap-2 px-5 sm:px-6 lg:px-7 py-2.5 sm:py-3 rounded-xl bg-[#2ca566] hover:bg-emerald-500 text-white font-semibold text-xs sm:text-sm lg:text-base transition-all duration-200"
                 >
-                  <Film className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2]" />
-                  <span>Watch Trailer</span>
-                </button>
+                  <Play className="w-4 sm:w-5 h-4 sm:h-5 fill-white stroke-none" />
+                  <span>Watch Now</span>
+                </Link>
               )}
 
-              {/* Add Watchlist Button */}
+              {/* Watchlist Button */}
               <button
                 onClick={() => toggleWatchlist(currentMovie)}
                 className="font-custom1 inline-flex items-center gap-2 px-4.5 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl bg-[#1c202a]/80 hover:bg-[#282e3c] text-white font-medium text-xs sm:text-sm lg:text-base backdrop-blur-md border border-white/15 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer group/fav"
@@ -255,38 +322,61 @@ export default function HeroSlider() {
                 {watchlist[currentMovie.id] ? (
                   <>
                     <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 transition-transform duration-300 scale-110" />
-                    <span>Added to Watchlist</span>
+                    <span>Watchlist</span>
                   </>
                 ) : (
                   <>
                     <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-yellow-400 group-hover/fav:scale-110" />
-                    <span>Add Watchlist</span>
+                    <span>Watchlist</span>
                   </>
                 )}
               </button>
+
+              {/* Trailer Button — gray, shown only if trailer exists */}
+              {hasTrailer && (
+                <button
+                  onClick={() => setActiveTrailerId(currentMovie.trailerId)}
+                  className="font-custom1 inline-flex items-center gap-2 px-4.5 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-xl bg-[#1c202a]/80 hover:bg-[#282e3c] text-zinc-300 hover:text-white font-medium text-xs sm:text-sm lg:text-base backdrop-blur-md border border-white/15 transition-all duration-200 hover:scale-[1.03] active:scale-[0.98] cursor-pointer"
+                >
+                  <Film className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2]" />
+                  <span>Trailer</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Right/Bottom Controls (Pagination Dots) */}
+          {/* Right: Pagination Dots */}
           <div className="flex items-center gap-3 sm:gap-4 shrink-0 self-start lg:self-end pt-2 lg:pt-0 z-30">
-            {/* Pagination Dots */}
             {movies.length > 1 && (
               <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3.5 py-2.5 rounded-full border border-white/10 shadow-lg">
-                {movies.map((_, index) => {
-                  const isActive = index === currentIndex;
+                {movies.slice(0, Math.min(5, movies.length)).map((_, index) => {
+                  const isActive = currentIndex % 5 === index;
                   return (
                     <button
                       key={index}
-                      onClick={() => setCurrentIndex(index)}
-                      className={`transition-all duration-500 rounded-full cursor-pointer relative overflow-hidden ${
-                        isActive
-                          ? "w-8 h-2 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
-                          : "w-2 h-2 bg-white/35 hover:bg-white/70"
-                      }`}
-                      aria-label={`Go to slide ${index + 1}`}
+                      onClick={() => {
+                        const pageOffset = Math.floor(currentIndex / 5) * 5;
+                        const targetIndex = pageOffset + index;
+                        setCurrentIndex(targetIndex < movies.length ? targetIndex : index);
+                      }}
+                      className={`transition-all duration-500 rounded-full cursor-pointer relative overflow-hidden ${isActive
+                        ? "w-8 h-2 bg-white shadow-[0_0_10px_rgba(255,255,255,0.8)]"
+                        : "w-2 h-2 bg-white/35 hover:bg-white/70"
+                        }`}
+                      aria-label={`Go to slide ${Math.floor(currentIndex / 5) * 5 + index + 1}`}
                     />
                   );
                 })}
+                {/* Show +N badge during slides 1-5 (index 0-4), hide on slides 6-10 (index 5-9) */}
+                {movies.length > 5 && currentIndex < 5 && (
+                  <button
+                    onClick={() => setCurrentIndex(5)}
+                    className="text-[10px] font-semibold text-zinc-400 hover:text-white pl-1 transition-colors cursor-pointer"
+                    title="Next slides"
+                  >
+                    +{movies.length - 5}
+                  </button>
+                )}
               </div>
             )}
           </div>

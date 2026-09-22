@@ -73,7 +73,7 @@ export default function PopularOfWeek() {
   }
 
   return (
-    <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative">
+    <section className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 relative popular-section">
       {/* Section Header */}
       <div className="flex items-center justify-between mb-7">
         <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">

@@ -21,6 +21,9 @@ export type {
   BrowseFilterParams,
   CountryOption,
   CountriesResponse,
+  ReleaseItem,
+  ReleaseMonthGroup,
+  ReleasesResponse,
 } from "@/domain/movie/movie.types";
 
 export interface UpcomingMoviesResponse {

@@ -41,6 +41,9 @@ import {
   BrowseGridResponse,
   GenreOption,
   CountryOption,
+  ReleaseItem,
+  ReleaseMonthGroup,
+  ReleasesResponse,
 } from "@/domain/movie/movie.types";
 import {
   TMDBMovieDetails,
@@ -141,7 +144,9 @@ export function calculateTag(releaseDateStr?: string | null): string {
   const diffMs = targetDate.getTime() - startOfToday.getTime();
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
-  if (diffDays <= 7) {
+  if (diffDays <= 0) {
+    return "Now Playing";
+  } else if (diffDays <= 7) {
     return "Coming next week";
   } else if (diffDays <= 30) {
     return "Coming this month";
@@ -220,8 +225,44 @@ export function transformToUpcomingMovie(
     tag,
     title: movie.title ?? "",
     year,
+    release_date: movie.release_date ?? "",
+    media_type: "movie",
     genres,
     description,
+    backdrop,
+    trailerId,
+  };
+}
+
+/**
+ * Transforms a TMDB TV summary into an UpcomingMovie slide for the Hero Slider
+ */
+export function transformTVToUpcomingSlide(
+  tv: import("@/infrastructure/tmdb/tmdb.types").TMDBTVSummary,
+  genreMap: Record<number, string>,
+  trailerId: string = ""
+): UpcomingMovie {
+  const releaseDate = tv.first_air_date ?? "";
+  const tag = calculateTag(releaseDate);
+  const year = releaseDate ? releaseDate.substring(0, 4) : "";
+
+  const genres = (tv.genre_ids || [])
+    .map((id) => genreMap[id])
+    .filter(Boolean);
+
+  const backdrop = tv.backdrop_path
+    ? `https://image.tmdb.org/t/p/original${tv.backdrop_path}`
+    : "";
+
+  return {
+    id: String(tv.id),
+    tag,
+    title: tv.name ?? "",
+    year,
+    release_date: releaseDate,
+    media_type: "tv",
+    genres,
+    description: tv.overview ?? "",
     backdrop,
     trailerId,
   };
@@ -328,51 +369,85 @@ export function transformToPopularContent(
 }
 
 /**
- * Service to fetch and prepare 5 upcoming movies for the Hero Section
+ * Service to fetch and prepare 10 upcoming/on-air items (5 movies + 5 TV series) for the Hero Section
  */
 export const getUpcomingHeroMoviesService = async (): Promise<UpcomingMovie[]> => {
-  // Fetch upcoming movies and genre list in parallel with resilient error handling
-  const [upcomingData, genreData] = await Promise.all([
-    findUpcomingMoviesFromTMDB(1),
-    findMovieGenresFromTMDB().catch(() => ({ genres: [] })),
-  ]);
+  // Fetch upcoming movies, on-air TV, movie genres, and TV genres in parallel
+  const [upcomingData, onAirTVData, movieGenreData, tvGenreData] =
+    await Promise.all([
+      findUpcomingMoviesFromTMDB(1).catch(() => ({ results: [] })),
+      findOnTheAirTVFromTMDB(1).catch(() => ({ results: [] })),
+      findMovieGenresFromTMDB().catch(() => ({ genres: [] })),
+      findTVGenresFromTMDB().catch(() => ({ genres: [] })),
+    ]);
 
-  const rawMovies = upcomingData?.results || [];
-  if (rawMovies.length === 0) {
-    return [];
-  }
+  // Build genre lookup maps
+  const movieGenreMap: Record<number, string> = {};
+  (movieGenreData?.genres || []).forEach((g) => {
+    movieGenreMap[g.id] = g.name;
+  });
 
-  // Build genre lookup map
-  const genreMap: Record<number, string> = {};
-  if (genreData?.genres && Array.isArray(genreData.genres)) {
-    genreData.genres.forEach((g) => {
-      genreMap[g.id] = g.name;
-    });
-  }
+  const tvGenreMap: Record<number, string> = {};
+  (tvGenreData?.genres || []).forEach((g) => {
+    tvGenreMap[g.id] = g.name;
+  });
 
-  // Prioritize movies with backdrop and overview
-  const candidates = rawMovies.filter((m) => !!m.backdrop_path);
-  const selectedCandidates = (
-    candidates.length >= 5 ? candidates : rawMovies
-  ).slice(0, 5);
+  const rawMovies = (upcomingData as any)?.results || [];
+  const rawTV = (onAirTVData as any)?.results || [];
 
-  // Fetch videos for the top 5 candidates in parallel with graceful catch
-  const upcomingMovies = await Promise.all(
-    selectedCandidates.map(async (candidate) => {
-      let trailerId = "";
-      try {
-        const details = await findMovieDetailsWithVideosFromTMDB(candidate.id);
-        trailerId = extractYouTubeTrailerId(details.videos?.results);
-      } catch {
-        // Gracefully fallback to empty trailer without logging noisy network traces
-        trailerId = "";
-      }
-
-      return transformToUpcomingMovie(candidate, genreMap, trailerId);
-    })
+  // Pick top 5 movies (prefer those with backdrop)
+  const movieCandidates = rawMovies
+    .filter((m: any) => !!m.backdrop_path)
+    .slice(0, 5);
+  const selectedMovies = (
+    movieCandidates.length >= 5 ? movieCandidates : rawMovies.slice(0, 5)
   );
 
-  return upcomingMovies;
+  // Pick top 5 TV (prefer those with backdrop)
+  const tvCandidates = rawTV
+    .filter((t: any) => !!t.backdrop_path)
+    .slice(0, 5);
+  const selectedTV = (
+    tvCandidates.length >= 5 ? tvCandidates : rawTV.slice(0, 5)
+  );
+
+  // Fetch trailers for movies and TV in parallel
+  const [movieSlides, tvSlides] = await Promise.all([
+    Promise.all(
+      selectedMovies.map(async (candidate: any) => {
+        let trailerId = "";
+        try {
+          const details = await findMovieDetailsWithVideosFromTMDB(candidate.id);
+          trailerId = extractYouTubeTrailerId(details.videos?.results);
+        } catch {
+          trailerId = "";
+        }
+        return transformToUpcomingMovie(candidate, movieGenreMap, trailerId);
+      })
+    ),
+    Promise.all(
+      selectedTV.map(async (tv: any) => {
+        let trailerId = "";
+        try {
+          const details = await findTVDetailsFullFromTMDB(tv.id);
+          trailerId = extractYouTubeTrailerId(details.videos?.results);
+        } catch {
+          trailerId = "";
+        }
+        return transformTVToUpcomingSlide(tv, tvGenreMap, trailerId);
+      })
+    ),
+  ]);
+
+  // Interleave: movie, tv, movie, tv... for variety
+  const combined: UpcomingMovie[] = [];
+  const maxLen = Math.max(movieSlides.length, tvSlides.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < movieSlides.length) combined.push(movieSlides[i]);
+    if (i < tvSlides.length) combined.push(tvSlides[i]);
+  }
+
+  return combined.slice(0, 10);
 };
 
 /**
@@ -1125,6 +1200,13 @@ export const getMovieDetailService = async (
     const cast = mapCreditsToCast(details.credits);
     const reviews = mapTMDBReviews(details.reviews);
 
+    const releaseDate = details.release_date || "";
+    const status = details.status || "";
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isUpcoming =
+      (Boolean(releaseDate) && releaseDate > todayStr) ||
+      (Boolean(status) && status.toLowerCase() !== "released");
+
     return {
       id: String(details.id),
       title: details.title || "",
@@ -1141,6 +1223,9 @@ export const getMovieDetailService = async (
       cast,
       reviews,
       type: "Movie",
+      releaseDate,
+      status,
+      isUpcoming,
     };
   } catch (err: unknown) {
     const isNotFound =
@@ -1243,6 +1328,16 @@ export const getTVSeriesDetailService = async (
       episodes = [];
     }
 
+    const releaseDate = details.first_air_date || "";
+    const status = details.status || "";
+    const todayStr = new Date().toISOString().split("T")[0];
+    const isUpcoming =
+      (Boolean(releaseDate) && releaseDate > todayStr) ||
+      (Boolean(status) &&
+        !["returning series", "ended", "canceled", "released"].includes(
+          status.toLowerCase()
+        ));
+
     return {
       id: String(details.id),
       title: details.name || "",
@@ -1262,6 +1357,9 @@ export const getTVSeriesDetailService = async (
       cast,
       reviews,
       type: "TV Series",
+      releaseDate,
+      status,
+      isUpcoming,
     };
   } catch (err: unknown) {
     const isNotFound =
@@ -1926,6 +2024,370 @@ export const searchContentService = async ({
     hasMore: totalPages > page,
   };
 };
+
+/**
+ * Service to fetch releases (both Movies and TV Series) by year and region, grouped by month descending
+ */
+export const getReleasesService = async ({
+  year,
+  region = "worldwide",
+}: {
+  year?: number;
+  region?: string;
+}): Promise<ReleasesResponse> => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1 to 12
+  const todayStr = now.toISOString().split("T")[0]; // "YYYY-MM-DD"
+
+  // Target year defaults to current year, clamped between 2000 and currentYear
+  const targetYear = Math.max(2000, Math.min(currentYear, Number(year) || currentYear));
+  const isCurrentYear = targetYear === currentYear;
+
+  // Rule: If selectedYear === currentYear -> currentMonth down to January
+  // Rule: If selectedYear < currentYear -> December (12) down to January
+  const maxMonth = isCurrentYear ? currentMonth : 12;
+
+  // Determine end date for the query
+  const lastDayOfMaxMonth = new Date(targetYear, maxMonth, 0).getDate();
+  const endDateStr = `${targetYear}-${String(maxMonth).padStart(2, "0")}-${String(lastDayOfMaxMonth).padStart(2, "0")}`;
+  const startDateStr = `${targetYear}-01-01`;
+
+  const isWorldwide = !region || region.toLowerCase() === "worldwide";
+  const regionCode = isWorldwide ? undefined : region.toUpperCase();
+
+  // Load genres mapping for both Movies and TV Series in parallel
+  const [movieGenresRes, tvGenresRes] = await Promise.all([
+    findMovieGenresFromTMDB().catch(() => ({ genres: [] })),
+    findTVGenresFromTMDB().catch(() => ({ genres: [] })),
+  ]);
+
+  const movieGenreMap: Record<number, string> = {};
+  (movieGenresRes.genres || []).forEach((g) => {
+    movieGenreMap[g.id] = g.name;
+  });
+
+  const tvGenreMap: Record<number, string> = {};
+  (tvGenresRes.genres || []).forEach((g) => {
+    tvGenreMap[g.id] = g.name;
+  });
+
+  // Movie Query Parameters
+  const movieBaseParams: Record<string, string | number | boolean | undefined> = {
+    include_adult: false,
+    include_video: false,
+    language: "en-US",
+  };
+
+  if (regionCode) {
+    movieBaseParams.region = regionCode;
+    movieBaseParams["release_date.gte"] = startDateStr;
+    movieBaseParams["release_date.lte"] = endDateStr;
+    movieBaseParams.with_release_type = "1|2|3|4|5|6";
+  } else {
+    movieBaseParams["primary_release_date.gte"] = startDateStr;
+    movieBaseParams["primary_release_date.lte"] = endDateStr;
+  }
+
+  const movieSortParam = regionCode ? "release_date.desc" : "primary_release_date.desc";
+
+  // TV Query Parameters
+  const tvBaseParams: Record<string, string | number | boolean | undefined> = {
+    include_adult: false,
+    language: "en-US",
+  };
+
+  if (regionCode) {
+    tvBaseParams.with_origin_country = regionCode;
+    tvBaseParams["air_date.gte"] = startDateStr;
+    tvBaseParams["air_date.lte"] = endDateStr;
+  } else {
+    tvBaseParams["air_date.gte"] = startDateStr;
+    tvBaseParams["air_date.lte"] = endDateStr;
+  }
+
+  // Fetch Movie and TV lists in parallel
+  const [
+    datePage1,
+    datePage2,
+    popPage1,
+    popPage2,
+    tvDatePage1,
+    tvPopPage1,
+    tvPopPage2,
+  ] = await Promise.allSettled([
+    findDiscoverMoviesFromTMDB({ ...movieBaseParams, sort_by: movieSortParam, page: 1 }),
+    findDiscoverMoviesFromTMDB({ ...movieBaseParams, sort_by: movieSortParam, page: 2 }),
+    findDiscoverMoviesFromTMDB({ ...movieBaseParams, sort_by: "popularity.desc", page: 1 }),
+    findDiscoverMoviesFromTMDB({ ...movieBaseParams, sort_by: "popularity.desc", page: 2 }),
+    findDiscoverTVFromTMDB({ ...tvBaseParams, sort_by: "first_air_date.desc", page: 1 }),
+    findDiscoverTVFromTMDB({ ...tvBaseParams, sort_by: "popularity.desc", page: 1 }),
+    findDiscoverTVFromTMDB({ ...tvBaseParams, sort_by: "popularity.desc", page: 2 }),
+  ]);
+
+  const rawMovieList: TMDBMovieSummary[] = [];
+  const addMovieResults = (settled: PromiseSettledResult<{ results?: TMDBMovieSummary[] }>) => {
+    if (settled.status === "fulfilled" && Array.isArray(settled.value?.results)) {
+      rawMovieList.push(...settled.value.results);
+    }
+  };
+  addMovieResults(datePage1);
+  addMovieResults(datePage2);
+  addMovieResults(popPage1);
+  addMovieResults(popPage2);
+
+  const rawTVList: TMDBTVSummary[] = [];
+  const addTVResults = (settled: PromiseSettledResult<{ results?: TMDBTVSummary[] }>) => {
+    if (settled.status === "fulfilled" && Array.isArray(settled.value?.results)) {
+      rawTVList.push(...settled.value.results);
+    }
+  };
+  addTVResults(tvDatePage1);
+  addTVResults(tvPopPage1);
+  addTVResults(tvPopPage2);
+
+  const nowPlayingMovieIds = new Set<number>();
+  const onTheAirTVIds = new Set<number>();
+
+  // If current year, also fetch upcoming movies, now playing movies, and on-the-air TV
+  if (isCurrentYear) {
+    try {
+      const [upcomingRes, nowPlayingRes, onTheAirRes] = await Promise.allSettled([
+        findUpcomingMoviesFromTMDB(1),
+        findNowPlayingMoviesFromTMDB(1),
+        findOnTheAirTVFromTMDB(1),
+      ]);
+      if (upcomingRes.status === "fulfilled" && Array.isArray(upcomingRes.value?.results)) {
+        rawMovieList.push(...upcomingRes.value.results);
+      }
+      if (nowPlayingRes.status === "fulfilled" && Array.isArray(nowPlayingRes.value?.results)) {
+        rawMovieList.push(...nowPlayingRes.value.results);
+        for (const m of nowPlayingRes.value.results) {
+          if (m.id) nowPlayingMovieIds.add(m.id);
+        }
+      }
+      if (onTheAirRes.status === "fulfilled" && Array.isArray(onTheAirRes.value?.results)) {
+        rawTVList.push(...onTheAirRes.value.results);
+        for (const t of onTheAirRes.value.results) {
+          if (t.id) onTheAirTVIds.add(t.id);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  // 1. Process Movies
+  const seenMovieIds = new Set<number>();
+  const validMovies: ReleaseItem[] = [];
+
+  for (const movie of rawMovieList) {
+    if (!movie.id || seenMovieIds.has(movie.id)) continue;
+    seenMovieIds.add(movie.id);
+
+    if (!movie.release_date || typeof movie.release_date !== "string") continue;
+    const parts = movie.release_date.split("-");
+    if (parts.length !== 3) continue;
+
+    const mYear = parseInt(parts[0], 10);
+    const mMonth = parseInt(parts[1], 10);
+    const mDay = parseInt(parts[2], 10);
+
+    if (isNaN(mYear) || isNaN(mMonth) || isNaN(mDay)) continue;
+    if (mYear !== targetYear) continue;
+    if (mMonth > maxMonth) continue;
+
+    const genres = (movie.genre_ids || [])
+      .map((id) => movieGenreMap[id])
+      .filter(Boolean);
+
+    const isUpcoming = movie.release_date > todayStr;
+    const isNowPlaying =
+      !isUpcoming &&
+      (nowPlayingMovieIds.has(movie.id) ||
+        new Date(movie.release_date).getTime() >=
+          now.getTime() - 45 * 24 * 60 * 60 * 1000);
+
+    const status: "Released" | "Upcoming" | "Now Playing" = isUpcoming
+      ? "Upcoming"
+      : isNowPlaying
+      ? "Now Playing"
+      : "Released";
+
+    const dayFormatted = String(mDay).padStart(2, "0");
+
+    validMovies.push({
+      id: String(movie.id),
+      title: movie.title || "Untitled",
+      poster: movie.poster_path
+        ? `https://image.tmdb.org/t/p/w342${movie.poster_path}`
+        : "",
+      backdrop: movie.backdrop_path
+        ? `https://image.tmdb.org/t/p/w1280${movie.backdrop_path}`
+        : "",
+      releaseDate: movie.release_date,
+      day: dayFormatted,
+      genres,
+      overview: movie.overview || "",
+      voteAverage:
+        typeof movie.vote_average === "number"
+          ? parseFloat(movie.vote_average.toFixed(1))
+          : 0,
+      status,
+      mediaType: "movie",
+    });
+  }
+
+  // 2. Process TV Series
+  const seenTVIds = new Set<number>();
+  const candidateTVs: TMDBTVSummary[] = [];
+
+  for (const tv of rawTVList) {
+    if (!tv.id || seenTVIds.has(tv.id)) continue;
+    seenTVIds.add(tv.id);
+
+    if (!tv.first_air_date || typeof tv.first_air_date !== "string") continue;
+    const parts = tv.first_air_date.split("-");
+    if (parts.length !== 3) continue;
+
+    const tYear = parseInt(parts[0], 10);
+    const tMonth = parseInt(parts[1], 10);
+    const tDay = parseInt(parts[2], 10);
+
+    if (isNaN(tYear) || isNaN(tMonth) || isNaN(tDay)) continue;
+    if (tYear !== targetYear) continue;
+    if (tMonth > maxMonth) continue;
+
+    candidateTVs.push(tv);
+  }
+
+  // Fetch season details for up to 15 top candidate TV shows to enrich with S?? E??
+  const tvDetailsMap = new Map<number, { seasonInfo: string }>();
+  const tvDetailPromises = candidateTVs.slice(0, 15).map(async (tv) => {
+    try {
+      const details = await findTVDetailsWithRatingsFromTMDB(tv.id);
+      if (details && Array.isArray(details.seasons) && details.seasons.length > 0) {
+        const regularSeasons = details.seasons.filter((s) => s.season_number > 0);
+        // Find season released in target year or the latest season
+        const matched =
+          regularSeasons.find((s) => s.air_date && s.air_date.startsWith(String(targetYear))) ||
+          regularSeasons[regularSeasons.length - 1];
+
+        if (matched) {
+          const sNum = matched.season_number;
+          const epCount = matched.episode_count || 1;
+          const sInfo = epCount > 1 ? `S${sNum} E1-${epCount}` : `S${sNum} E1`;
+          tvDetailsMap.set(tv.id, { seasonInfo: sInfo });
+          return;
+        }
+      }
+      tvDetailsMap.set(tv.id, { seasonInfo: "S1" });
+    } catch {
+      tvDetailsMap.set(tv.id, { seasonInfo: "S1" });
+    }
+  });
+
+  await Promise.allSettled(tvDetailPromises);
+
+  const validTVSeries: ReleaseItem[] = [];
+
+  for (const tv of candidateTVs) {
+    const tvAirDate = tv.first_air_date as string;
+    const parts = tvAirDate.split("-");
+    const tDay = parseInt(parts[2], 10);
+
+    const genres = (tv.genre_ids || [])
+      .map((id) => tvGenreMap[id])
+      .filter(Boolean);
+
+    const isUpcoming = tvAirDate > todayStr;
+    const isNowPlaying =
+      !isUpcoming &&
+      (onTheAirTVIds.has(tv.id) ||
+        new Date(tvAirDate).getTime() >=
+          now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const status: "Released" | "Upcoming" | "Now Playing" = isUpcoming
+      ? "Upcoming"
+      : isNowPlaying
+      ? "Now Playing"
+      : "Released";
+
+    const dayFormatted = String(tDay).padStart(2, "0");
+    const seasonInfo = tvDetailsMap.get(tv.id)?.seasonInfo || "S1";
+
+    validTVSeries.push({
+      id: String(tv.id),
+      title: tv.name || "Untitled",
+      poster: tv.poster_path
+        ? `https://image.tmdb.org/t/p/w342${tv.poster_path}`
+        : "",
+      backdrop: tv.backdrop_path
+        ? `https://image.tmdb.org/t/p/w1280${tv.backdrop_path}`
+        : "",
+      releaseDate: tv.first_air_date as string,
+      day: dayFormatted,
+      genres,
+      overview: tv.overview || "",
+      voteAverage:
+        typeof tv.vote_average === "number"
+          ? parseFloat(tv.vote_average.toFixed(1))
+          : 0,
+      status,
+      mediaType: "tv",
+      seasonInfo,
+    });
+  }
+
+  // Combine both Movies and TV series
+  const allReleases: ReleaseItem[] = [...validMovies, ...validTVSeries];
+
+  const MONTH_NAMES = [
+    "",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  // Group by month descending: from maxMonth down to 1
+  const monthGroups: ReleaseMonthGroup[] = [];
+
+  for (let m = maxMonth; m >= 1; m--) {
+    const monthStr = String(m).padStart(2, "0");
+    const monthReleases = allReleases.filter((item) => {
+      const parts = item.releaseDate.split("-");
+      return parts[1] === monthStr;
+    });
+
+    // Sort within month: release date descending (newest release day first)
+    monthReleases.sort((a, b) => b.releaseDate.localeCompare(a.releaseDate));
+
+    // Hide empty months
+    if (monthReleases.length > 0) {
+      monthGroups.push({
+        month: m,
+        name: MONTH_NAMES[m],
+        releases: monthReleases,
+      });
+    }
+  }
+
+  return {
+    year: targetYear,
+    region: region || "worldwide",
+    months: monthGroups,
+  };
+};
+
 
 
 
