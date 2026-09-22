@@ -9,6 +9,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/new-release",
+        destination: "/release",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
