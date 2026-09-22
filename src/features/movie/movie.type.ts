@@ -7,8 +7,6 @@ export type {
   SeriesItem,
   MediaType,
   MediaItem,
-  AwardMovie,
-  AwardSeries,
   CastMember,
   ReviewItem,
   EpisodeItem,
@@ -51,14 +49,6 @@ export interface BestTVSeriesResponse {
 
 export interface BrowseMediaResponse {
   items: import("@/domain/movie/movie.types").MediaItem[];
-}
-
-export interface AwardMoviesResponse {
-  items: import("@/domain/movie/movie.types").AwardMovie[];
-}
-
-export interface AwardSeriesResponse {
-  items: import("@/domain/movie/movie.types").AwardSeries[];
 }
 
 export interface MovieDetailResponse {

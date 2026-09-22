@@ -84,7 +84,7 @@ export default function SimilarContentSection({
   }
 
   const titleText =
-    type === "Movie" ? "Similar movies for you" : "Similar tv series for you";
+    type === "Movie" ? "Similar Movies For You" : "Similar TV Series For You";
 
   const handleCardClick = (item: SimilarContentItem) => {
     if (item.type === "Movie") {
