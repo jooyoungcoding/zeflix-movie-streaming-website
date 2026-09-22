@@ -29,6 +29,7 @@ export default function Footer() {
                                 alt="ZEFLIX Logo"
                                 width={40}
                                 height={40}
+                                style={{ width: "auto", height: "auto" }}
                                 className="object-contain transition-transform duration-300 group-hover:scale-110 drop-shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
                             />
                         </div>
@@ -51,7 +52,7 @@ export default function Footer() {
                         <ul className="flex flex-col space-y-2.5 font-custom1 text-sm text-zinc-400">
                             <li>
                                 <Link
-                                    href="/movies"
+                                    href="/discover"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Movies
@@ -59,7 +60,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/series"
+                                    href="/discover"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Series
@@ -67,7 +68,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/countries"
+                                    href="/discover"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Countries
@@ -75,7 +76,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/genres"
+                                    href="/discover"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Genres
@@ -92,7 +93,7 @@ export default function Footer() {
                         <ul className="flex flex-col space-y-2.5 font-custom1 text-sm text-zinc-400">
                             <li>
                                 <Link
-                                    href="/help"
+                                    href="/about"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Help Center
@@ -100,7 +101,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/contact"
+                                    href="/about"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Contact Us
@@ -108,7 +109,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/faq"
+                                    href="/about"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     FAQ
@@ -133,7 +134,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/privacy"
+                                    href="/about"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Privacy
@@ -141,7 +142,7 @@ export default function Footer() {
                             </li>
                             <li>
                                 <Link
-                                    href="/terms"
+                                    href="/about"
                                     className="hover:text-white transition-colors duration-200"
                                 >
                                     Terms

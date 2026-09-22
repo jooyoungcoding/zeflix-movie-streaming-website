@@ -26,12 +26,13 @@ export async function GET(request: Request) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/watchlist/check] Error:", error);
+    const msg = error instanceof Error ? error.message : "Failed to check watchlist status";
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to check watchlist status",
+        error: msg,
       },
       { status: 500 }
     );

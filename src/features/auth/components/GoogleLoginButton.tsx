@@ -23,9 +23,10 @@ export default function GoogleLoginButton({
     try {
       const url = await requestGoogleLogin();
       window.location.href = url;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Google login failed:", error);
-      toast.error(error.message || "Failed to initialize Google login");
+      const msg = error instanceof Error ? error.message : "Failed to initialize Google login";
+      toast.error(msg);
       setIsLoading(false);
     }
   };

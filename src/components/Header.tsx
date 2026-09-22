@@ -83,7 +83,10 @@ export default function Header() {
           }
         }
       } catch (err) {
-        console.error("Failed to fetch profile/session:", err);
+        // Silent fallback for unauthenticated visitors or canceled requests during navigation
+        if (err instanceof Error && err.name !== "AbortError") {
+          // Session unavailable, keep visitor in guest state
+        }
       }
     };
 
@@ -185,6 +188,7 @@ export default function Header() {
               alt="ZEFLIX Logo"
               width={44}
               height={44}
+              style={{ width: "auto", height: "auto" }}
               className="object-contain transition-transform duration-300 group-hover:scale-110 drop-shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
               priority
             />

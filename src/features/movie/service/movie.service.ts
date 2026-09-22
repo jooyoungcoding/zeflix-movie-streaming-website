@@ -392,29 +392,27 @@ export const getUpcomingHeroMoviesService = async (): Promise<UpcomingMovie[]> =
     tvGenreMap[g.id] = g.name;
   });
 
-  const rawMovies = (upcomingData as any)?.results || [];
-  const rawTV = (onAirTVData as any)?.results || [];
+  const rawMovies = upcomingData?.results || [];
+  const rawTV = onAirTVData?.results || [];
 
   // Pick top 5 movies (prefer those with backdrop)
   const movieCandidates = rawMovies
-    .filter((m: any) => !!m.backdrop_path)
+    .filter((m) => !!m.backdrop_path)
     .slice(0, 5);
-  const selectedMovies = (
-    movieCandidates.length >= 5 ? movieCandidates : rawMovies.slice(0, 5)
-  );
+  const selectedMovies =
+    movieCandidates.length >= 5 ? movieCandidates : rawMovies.slice(0, 5);
 
   // Pick top 5 TV (prefer those with backdrop)
   const tvCandidates = rawTV
-    .filter((t: any) => !!t.backdrop_path)
+    .filter((t) => !!t.backdrop_path)
     .slice(0, 5);
-  const selectedTV = (
-    tvCandidates.length >= 5 ? tvCandidates : rawTV.slice(0, 5)
-  );
+  const selectedTV =
+    tvCandidates.length >= 5 ? tvCandidates : rawTV.slice(0, 5);
 
   // Fetch trailers for movies and TV in parallel
   const [movieSlides, tvSlides] = await Promise.all([
     Promise.all(
-      selectedMovies.map(async (candidate: any) => {
+      selectedMovies.map(async (candidate) => {
         let trailerId = "";
         try {
           const details = await findMovieDetailsWithVideosFromTMDB(candidate.id);
@@ -426,7 +424,7 @@ export const getUpcomingHeroMoviesService = async (): Promise<UpcomingMovie[]> =
       })
     ),
     Promise.all(
-      selectedTV.map(async (tv: any) => {
+      selectedTV.map(async (tv) => {
         let trailerId = "";
         try {
           const details = await findTVDetailsFullFromTMDB(tv.id);

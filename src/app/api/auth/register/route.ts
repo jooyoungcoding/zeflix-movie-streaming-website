@@ -9,10 +9,10 @@ export async function POST(request: NextRequest) {
     const result = await signUpController(body);
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/auth/register] Error:", error);
 
-    const errorMessage = error?.message || "Internal Server Error";
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
 
     // Handle known business validation / duplicate errors
     if (
