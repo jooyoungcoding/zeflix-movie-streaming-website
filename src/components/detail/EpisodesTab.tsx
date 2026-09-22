@@ -47,8 +47,14 @@ export default function EpisodesTab({
   const gap = 20;
   const itemStep = itemWidth + gap;
 
+  const isFirstRender = useRef(true);
+
   // Keep state in sync with props when active season or episode changes
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
     const s = initialActiveSeason !== undefined ? Number(initialActiveSeason) : Number(currentSeasonNumber);
     const ep = initialActiveEp !== undefined ? Number(initialActiveEp) : undefined;
     setActiveEpisode(ep);
@@ -75,12 +81,10 @@ export default function EpisodesTab({
           const res = await fetch(`/api/tv/${tvId}/season/${newSeason}`);
           if (res.ok) {
             const data = await res.json();
-            if (data.episodes && Array.isArray(data.episodes)) {
-              setEpisodes(data.episodes);
-            }
+            setEpisodes(data.episodes || []);
           }
         } catch (err) {
-          console.error("Error loading new season episodes:", err);
+          console.error("Failed to load season episodes:", err);
         } finally {
           setIsLoading(false);
         }
@@ -93,16 +97,25 @@ export default function EpisodesTab({
     };
   }, [tvId, selectedSeason]);
 
+  // Responsive check
+  useEffect(() => {
+    const checkIsDesktop = () => {
+      setIsDesktop(window.innerWidth >= 640);
+    };
+    checkIsDesktop();
+    window.addEventListener("resize", checkIsDesktop);
+    return () => window.removeEventListener("resize", checkIsDesktop);
+  }, []);
+
+  // Update maxIndex based on container width
   useEffect(() => {
     const updateMaxIndex = () => {
-      const desktop = window.innerWidth >= 640;
-      setIsDesktop(desktop);
-      if (containerRef.current) {
-        const containerWidth = containerRef.current.clientWidth;
-        const visibleCount = Math.floor(containerWidth / itemStep);
-        const max = Math.max(0, episodes.length - Math.max(1, visibleCount));
-        setMaxIndex(max);
-      }
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth;
+      const visibleCount = Math.floor((containerWidth + gap) / itemStep);
+      const newMax = Math.max(0, episodes.length - visibleCount);
+      setMaxIndex(newMax);
+      setCurrentIndex((prev) => Math.min(prev, newMax));
     };
 
     updateMaxIndex();
@@ -117,7 +130,10 @@ export default function EpisodesTab({
         (e) => Number(e.episodeNumber) === Number(activeEpisode)
       );
       if (activeIdx >= 0) {
-        setCurrentIndex(Math.min(activeIdx, maxIndex));
+        const timer = setTimeout(() => {
+          setCurrentIndex(Math.min(activeIdx, maxIndex));
+        }, 0);
+        return () => clearTimeout(timer);
       }
     }
   }, [activeEpisode, activeSeason, selectedSeason, episodes, maxIndex]);

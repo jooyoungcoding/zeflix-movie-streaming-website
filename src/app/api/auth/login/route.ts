@@ -9,10 +9,10 @@ export async function POST(request: NextRequest) {
     const result = await loginController(body);
 
     return NextResponse.json(result, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/auth/login] Error:", error);
 
-    const errorMessage = error?.message || "Internal Server Error";
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
 
     // Handle authentication / credentials errors
     if (

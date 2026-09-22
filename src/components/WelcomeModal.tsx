@@ -14,6 +14,14 @@ export default function WelcomeModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
 
+  const handleClose = React.useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+    }, 300);
+  }, []);
+
   useEffect(() => {
     // Check if modal has already been shown in this window lifecycle
     if (typeof window !== "undefined") {
@@ -39,15 +47,7 @@ export default function WelcomeModal() {
       clearTimeout(timer);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, []);
-
-  const handleClose = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setIsOpen(false);
-      setIsClosing(false);
-    }, 300);
-  };
+  }, [handleClose]);
 
   if (!isOpen) return null;
 

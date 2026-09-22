@@ -91,8 +91,9 @@ export default function RegisterComponent({
       if (onSuccess) {
         onSuccess();
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create account. Please try again.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create account. Please try again.";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -111,6 +112,7 @@ export default function RegisterComponent({
                 alt="ZEFLIX Logo"
                 width={32}
                 height={32}
+                style={{ width: "auto", height: "auto" }}
                 className="object-contain drop-shadow-[0_2px_8px_rgba(255,255,255,0.25)]"
                 priority
               />

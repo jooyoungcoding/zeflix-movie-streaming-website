@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Mail, Loader2, AlertCircle, ArrowRight } from "lucide-react";
+import { CheckCircle2, Mail, Loader2, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "@/libs/supabase";
 import { useAuthStore } from "@/store/auth.store";

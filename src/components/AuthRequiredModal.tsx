@@ -11,6 +11,14 @@ export default function AuthRequiredModal() {
   const { isOpen, title, description, closeModal } = useAuthModalStore();
   const [isClosing, setIsClosing] = useState(false);
 
+  const handleClose = React.useCallback(() => {
+    setIsClosing(true);
+    setTimeout(() => {
+      closeModal();
+      setIsClosing(false);
+    }, 200);
+  }, [closeModal]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
@@ -19,15 +27,7 @@ export default function AuthRequiredModal() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
-
-  const handleClose = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      closeModal();
-      setIsClosing(false);
-    }, 200);
-  };
+  }, [isOpen, handleClose]);
 
   const handleNavigate = (path: string) => {
     handleClose();

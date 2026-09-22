@@ -10,7 +10,6 @@ import {
   ChevronRight,
   Film,
   X,
-  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { UpcomingMovie } from "@/domain/movie/movie.types";
@@ -167,9 +166,10 @@ export default function HeroSlider() {
           });
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setWatchlist((prev) => ({ ...prev, [movie.id]: isCurrentlyAdded }));
-      toast.error(err.message || "Failed to update watchlist", {
+      const msg = err instanceof Error ? err.message : "Failed to update watchlist";
+      toast.error(msg, {
         id: `watchlist-err-${movie.id}`,
       });
     }

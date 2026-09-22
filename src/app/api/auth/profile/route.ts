@@ -23,10 +23,11 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(profile, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/auth/profile] Error:", error);
+    const msg = error instanceof Error ? error.message : "Internal Server Error";
     return NextResponse.json(
-      { error: error?.message || "Internal Server Error" },
+      { error: msg },
       { status: 500 }
     );
   }

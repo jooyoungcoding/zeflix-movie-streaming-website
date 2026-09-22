@@ -129,10 +129,11 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
           });
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Revert state on failure
       setIsWatchlist(!nextState);
-      toast.error(err.message || "Failed to update watchlist", {
+      const msg = err instanceof Error ? err.message : "Failed to update watchlist";
+      toast.error(msg, {
         id: `fav-err-${movie.id}`,
       });
     } finally {
@@ -184,17 +185,17 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
               alt={movie.title}
               fill
               priority
-              className="object-cover object-center brightness-[0.38]"
+              className="object-cover object-center brightness-[0.55] sm:brightness-[0.38] transition-all duration-300"
               sizes="100vw"
             />
           ) : (
             <div className="w-full h-full bg-[#0d1017]" />
           )}
 
-          {/* Gradients */}
-          <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-black via-black/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent lg:w-3/4" />
-          <div className="absolute bottom-0 inset-x-0 h-44 bg-gradient-to-t from-black via-black/90 to-transparent" />
+          {/* Gradients: Lighter on mobile so backdrop shines through, deeper on desktop for readability */}
+          <div className="absolute top-0 inset-x-0 h-20 sm:h-32 bg-gradient-to-b from-black/70 via-black/20 to-transparent sm:from-black sm:via-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent sm:bg-gradient-to-r sm:from-black sm:via-black/80 sm:to-transparent lg:w-3/4" />
+          <div className="absolute bottom-0 inset-x-0 h-24 sm:h-44 bg-gradient-to-t from-black via-black/60 sm:via-black/90 to-transparent" />
         </div>
 
         {/* Hero Content */}
@@ -213,13 +214,13 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
             <div className="max-w-3xl space-y-3.5 sm:space-y-4">
               {/* Tag Badge */}
               {movie.tagline && (
-                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs sm:text-[13px] font-custom2 tracking-wide">
+                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs sm:text-[13px] font-custom2 tracking-wide shadow-sm">
                   <span>{movie.tagline}</span>
                 </div>
               )}
 
               {/* Title */}
-              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white tracking-tight leading-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-md">
                 {movie.title}
               </h1>
 

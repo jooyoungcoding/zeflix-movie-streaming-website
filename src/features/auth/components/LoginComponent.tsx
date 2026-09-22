@@ -72,8 +72,9 @@ export default function LoginComponent({
       } else {
         router.push("/");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to login. Please check your credentials.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to login. Please check your credentials.";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -92,6 +93,7 @@ export default function LoginComponent({
                 alt="ZEFLIX Logo"
                 width={32}
                 height={32}
+                style={{ width: "auto", height: "auto" }}
                 className="object-contain drop-shadow-[0_2px_8px_rgba(255,255,255,0.25)]"
                 priority
               />

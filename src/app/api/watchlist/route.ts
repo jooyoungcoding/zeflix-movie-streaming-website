@@ -17,13 +17,14 @@ export async function GET() {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/watchlist] Error:", error);
-    const isUnauthorized = error.message === "Unauthorized";
+    const msg = error instanceof Error ? error.message : "Failed to fetch watchlist";
+    const isUnauthorized = msg === "Unauthorized";
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to fetch watchlist",
+        error: msg,
       },
       { status: isUnauthorized ? 401 : 500 }
     );
@@ -41,13 +42,14 @@ export async function POST(request: Request) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/watchlist] Error:", error);
-    const isUnauthorized = error.message === "Unauthorized";
+    const msg = error instanceof Error ? error.message : "Failed to update watchlist";
+    const isUnauthorized = msg === "Unauthorized";
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to update watchlist",
+        error: msg,
       },
       { status: isUnauthorized ? 401 : 400 }
     );
@@ -74,13 +76,14 @@ export async function DELETE(request: Request) {
       },
       { status: 200 }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[DELETE /api/watchlist] Error:", error);
-    const isUnauthorized = error.message === "Unauthorized";
+    const msg = error instanceof Error ? error.message : "Failed to delete from watchlist";
+    const isUnauthorized = msg === "Unauthorized";
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Failed to delete from watchlist",
+        error: msg,
       },
       { status: isUnauthorized ? 401 : 500 }
     );
