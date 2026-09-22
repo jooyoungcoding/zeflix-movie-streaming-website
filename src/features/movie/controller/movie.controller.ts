@@ -14,6 +14,7 @@ import {
   GenresResponse,
   BrowseFilterParams,
   CountriesResponse,
+  ReleasesResponse,
 } from "../movie.type";
 import {
   getUpcomingHeroMoviesService,
@@ -32,6 +33,7 @@ import {
   getBrowseGridService,
   getCountriesService,
   searchContentService,
+  getReleasesService,
 } from "../service/movie.service";
 
 export const getUpcomingMoviesController = async (): Promise<UpcomingMoviesResponse> => {
@@ -176,5 +178,9 @@ export const searchContentController = async (params: {
   return await searchContentService(params);
 };
 
-
-
+export const getReleasesController = async (params: {
+  year?: number;
+  region?: string;
+}): Promise<ReleasesResponse> => {
+  return await getReleasesService(params);
+};

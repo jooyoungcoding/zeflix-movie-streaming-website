@@ -167,8 +167,11 @@ export const signUpRepository = async (
 export const loginRepository = async (
   data: LoginRequest
 ): Promise<LoginResponse> => {
+  // Must use server client so Supabase can set session cookies via the SSR adapter
+  const supabaseServer = await createServerSupabaseClient();
+
   const { data: authData, error: authError } =
-    await supabase.auth.signInWithPassword({
+    await supabaseServer.auth.signInWithPassword({
       email: data.email,
       password: data.password,
     });
@@ -182,8 +185,8 @@ export const loginRepository = async (
     throw new Error("Failed to sign in");
   }
 
-  // Retrieve user profile to get profile_id and profile information
-  const { data: profileData, error: profileError } = await supabase
+  // Retrieve user profile
+  const { data: profileData, error: profileError } = await supabaseServer
     .from("profiles")
     .select("*")
     .eq("profile_id", user.id)

@@ -3,6 +3,8 @@ export interface UpcomingMovie {
   tag: string;
   title: string;
   year: string;
+  release_date: string;
+  media_type: "movie" | "tv";
   genres: string[];
   description: string;
   backdrop: string;
@@ -127,6 +129,9 @@ export interface MovieDetail {
   cast: CastMember[];
   reviews: ReviewItem[];
   type: "Movie";
+  releaseDate?: string;
+  status?: string;
+  isUpcoming?: boolean;
 }
 
 export interface TVSeriesDetail {
@@ -148,6 +153,9 @@ export interface TVSeriesDetail {
   cast: CastMember[];
   reviews: ReviewItem[];
   type: "TV Series";
+  releaseDate?: string;
+  status?: string;
+  isUpcoming?: boolean;
 }
 
 export interface SimilarContentItem {
@@ -209,4 +217,30 @@ export interface CountriesResponse {
   countries: CountryOption[];
 }
 
+export interface ReleaseItem {
+  id: string;
+  title: string;
+  poster: string;
+  backdrop: string;
+  releaseDate: string; // "YYYY-MM-DD"
+  day: string;         // "05", "25", etc.
+  genres: string[];
+  overview: string;
+  voteAverage: number;
+  status: "Released" | "Upcoming" | "Now Playing";
+  mediaType: "movie" | "tv";
+  seasonInfo?: string; // e.g. "S2 E10-20" or "S1 E1-10"
+  releaseInfo?: string;
+}
 
+export interface ReleaseMonthGroup {
+  month: number;
+  name: string;
+  releases: ReleaseItem[];
+}
+
+export interface ReleasesResponse {
+  year: number;
+  region: string;
+  months: ReleaseMonthGroup[];
+}
