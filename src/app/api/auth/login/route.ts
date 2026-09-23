@@ -9,15 +9,22 @@ export async function POST(request: NextRequest) {
     const result = await loginController(body);
 
     return NextResponse.json(result, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/auth/login] Error:", error);
 
-    const errorMessage = error?.message || "Internal Server Error";
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
+
+    // Handle email not confirmed explicitly
+    if (errorMessage.toLowerCase().includes("email not confirmed")) {
+      return NextResponse.json(
+        { error: "Email is not verified. Please check your email inbox to verify your account before logging in." },
+        { status: 403 }
+      );
+    }
 
     // Handle authentication / credentials errors
     if (
       errorMessage.includes("Invalid login credentials") ||
-      errorMessage.includes("Email not confirmed") ||
       errorMessage.includes("Invalid credentials") ||
       errorMessage.includes("invalid_grant")
     ) {

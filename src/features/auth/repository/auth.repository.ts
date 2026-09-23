@@ -1,4 +1,3 @@
-import { supabase } from "@/libs/supabase";
 import { createServerSupabaseClient } from "@/libs/supabaseServer";
 import { Profile } from "@/types/Profile";
 import {
@@ -11,7 +10,8 @@ import {
 export const findProfileByUsername = async (
   username: string
 ): Promise<Profile | null> => {
-  const { data, error } = await supabase
+  const supabaseServer = await createServerSupabaseClient();
+  const { data, error } = await supabaseServer
     .from("profiles")
     .select("*")
     .eq("username", username)
@@ -27,7 +27,8 @@ export const findProfileByUsername = async (
 export const findProfileById = async (
   profileId: string
 ): Promise<Profile | null> => {
-  const { data, error } = await supabase
+  const supabaseServer = await createServerSupabaseClient();
+  const { data, error } = await supabaseServer
     .from("profiles")
     .select("*")
     .eq("profile_id", profileId)
@@ -98,7 +99,8 @@ export const findProfileById = async (
 export const findProfileByEmail = async (
   email: string
 ): Promise<Profile | null> => {
-  const { data, error } = await supabase
+  const supabaseServer = await createServerSupabaseClient();
+  const { data, error } = await supabaseServer
     .from("profiles")
     .select("*")
     .eq("email", email)
@@ -112,19 +114,35 @@ export const findProfileByEmail = async (
 };
 
 export const signUpRepository = async (
-  data: SignUpRequest
+  data: SignUpRequest,
+  originUrl?: string
 ): Promise<SignUpResponse> => {
+  const supabaseServer = await createServerSupabaseClient();
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+    originUrl ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
-  const { data: authData, error: authError } = await supabase.auth.signUp({
+  const cleanSiteUrl = siteUrl.replace(/\/+$/, "");
+
+  // Generate unique username for DB constraint safety if needed
+  let finalUsername = data.username;
+  try {
+    const existingByUsername = await findProfileByUsername(data.username);
+    if (existingByUsername && existingByUsername.email !== data.email) {
+      finalUsername = `${data.username}_${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+  } catch {
+    // If lookup fails, use data.username
+  }
+
+  const { data: authData, error: authError } = await supabaseServer.auth.signUp({
     email: data.email,
     password: data.password,
     options: {
-      emailRedirectTo: `${siteUrl}/verify`,
+      emailRedirectTo: `${cleanSiteUrl}/verify`,
       data: {
-        username: data.username,
+        username: finalUsername,
         display_name: data.username,
       },
     },
@@ -139,13 +157,13 @@ export const signUpRepository = async (
     throw new Error("Failed to register user");
   }
 
-  const { data: profileData } = await supabase
+  const { data: profileData } = await supabaseServer
     .from("profiles")
     .upsert(
       {
         profile_id: user.id,
         email: user.email || data.email,
-        username: data.username,
+        username: finalUsername,
         display_name: data.username,
         avatar_url: null,
       },
@@ -160,7 +178,7 @@ export const signUpRepository = async (
       email: user.email,
     },
     profile: (profileData as Profile) || null,
-    message: "Registration successful! Please check your email to confirm your account.",
+    message: "Registration successful! Please check your email to verify your account.",
   };
 };
 
@@ -177,12 +195,21 @@ export const loginRepository = async (
     });
 
   if (authError) {
+    if (authError.message.toLowerCase().includes("email not confirmed")) {
+      throw new Error("Email not confirmed. Please verify your email before logging in.");
+    }
     throw authError;
   }
 
   const user = authData.user;
   if (!user) {
     throw new Error("Failed to sign in");
+  }
+
+  // Strict check: account must have confirmed email
+  if (!user.email_confirmed_at && !user.confirmed_at) {
+    await supabaseServer.auth.signOut();
+    throw new Error("Email not confirmed. Please verify your email before logging in.");
   }
 
   // Retrieve user profile
@@ -216,12 +243,15 @@ export const googleLoginRepository = async (): Promise<string> => {
   const supabaseServer = await createServerSupabaseClient();
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
     (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+
+  const cleanSiteUrl = siteUrl.replace(/\/+$/, "");
 
   const { data, error } = await supabaseServer.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: `${siteUrl}/auth/callback`,
+      redirectTo: `${cleanSiteUrl}/auth/callback`,
     },
   });
 

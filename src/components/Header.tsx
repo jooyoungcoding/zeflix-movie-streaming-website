@@ -19,8 +19,8 @@ import toast from "react-hot-toast";
 import { useAuthStore } from "@/store/auth.store";
 import { supabase } from "@/libs/supabase";
 import {
-  getUserProfile,
   getCurrentUser,
+  getUserProfile,
   requestLogout,
 } from "@/features/auth/api/auth.api";
 
@@ -55,6 +55,21 @@ export default function Header() {
     let isMounted = true;
     const fetchSessionOrProfile = async () => {
       try {
+        // Exchange PKCE code if redirected from verification or OAuth directly to the current page (skip on /verify to prevent race condition)
+        if (pathname !== "/verify" && typeof window !== "undefined" && window.location.search) {
+          const params = new URLSearchParams(window.location.search);
+          const code = params.get("code");
+          if (code) {
+            try {
+              await supabase.auth.exchangeCodeForSession(code);
+              const cleanUrl = window.location.pathname + (window.location.hash || "");
+              window.history.replaceState({}, document.title, cleanUrl);
+            } catch {
+              // Silently ignore if code was already exchanged
+            }
+          }
+        }
+
         // Always check server session first to get latest Google avatar/metadata
         const sessionData = await getCurrentUser();
         if (isMounted && sessionData?.user) {
@@ -69,29 +84,62 @@ export default function Header() {
           return;
         }
 
-        if (user_id) {
-          const data = await getUserProfile(user_id);
-          if (isMounted && data) {
-            useAuthStore.getState().setAuth({
-              user_id: data.profile_id,
-              profile_id: data.profile_id,
-              avatar_url: data.avatar_url,
-              username: data.username,
-              display_name: data.display_name,
-              email: data.email,
-            });
-          }
+        // Fallback: check client-side supabase session if server cookies are delayed
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (isMounted && session?.user) {
+          const profile = await getUserProfile(session.user.id).catch(() => null);
+          useAuthStore.getState().setAuth({
+            user_id: session.user.id,
+            profile_id: profile?.profile_id || session.user.id,
+            avatar_url: profile?.avatar_url || session.user.user_metadata?.avatar_url || null,
+            username: profile?.username || session.user.user_metadata?.username || null,
+            display_name: profile?.display_name || session.user.user_metadata?.full_name || null,
+            email: profile?.email || session.user.email || null,
+          });
+          return;
+        }
+
+        // Only clear if neither server nor client has any session
+        if (isMounted && !sessionData?.user && !session?.user && user_id) {
+          clearAuth();
         }
       } catch (err) {
-        console.error("Failed to fetch profile/session:", err);
+        // Silent fallback for unauthenticated visitors or canceled requests during navigation
+        if (err instanceof Error && err.name !== "AbortError") {
+          // Session unavailable, keep visitor in guest state
+        }
       }
     };
 
     fetchSessionOrProfile();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
+      if (!isMounted) return;
+      if (event === "SIGNED_IN" && currentSession?.user) {
+        const profile = await getUserProfile(currentSession.user.id).catch(() => null);
+        useAuthStore.getState().setAuth({
+          user_id: currentSession.user.id,
+          profile_id: profile?.profile_id || currentSession.user.id,
+          avatar_url: profile?.avatar_url || currentSession.user.user_metadata?.avatar_url || null,
+          username: profile?.username || currentSession.user.user_metadata?.username || null,
+          display_name: profile?.display_name || currentSession.user.user_metadata?.full_name || null,
+          email: profile?.email || currentSession.user.email || null,
+        });
+      } else if (event === "SIGNED_OUT") {
+        clearAuth();
+      }
+    });
+
     return () => {
       isMounted = false;
+      subscription.unsubscribe();
     };
-  }, [user_id]);
+  }, [user_id, clearAuth]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -185,6 +233,7 @@ export default function Header() {
               alt="ZEFLIX Logo"
               width={44}
               height={44}
+              style={{ width: "auto", height: "auto" }}
               className="object-contain transition-transform duration-300 group-hover:scale-110 drop-shadow-[0_2px_10px_rgba(255,255,255,0.25)]"
               priority
             />

@@ -235,7 +235,7 @@ export default function ReviewsTab({
             </div>
           </div>
 
-          {/* 3-Column Reviews Grid (Màu nền trùng với background, no border) */}
+          {/* 3-Column Reviews Grid (Background matching page background, no border) */}
           {filteredReviews.length === 0 ? (
             <div className="py-16 text-center text-zinc-500 text-sm bg-transparent flex flex-col items-center justify-center gap-2.5">
               <MessageSquare className="w-8 h-8 text-zinc-600" />

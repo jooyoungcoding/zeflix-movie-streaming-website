@@ -168,13 +168,14 @@ export default function SearchContent() {
       {/* Top Bar: Left Search Result Heading & Right Search Input */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/5">
         {/* Left Heading */}
-        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-wide">
           {activeQuery.trim() ? (
             <span>
-              Result for &ldquo;<span className="text-white">{activeQuery.trim()}</span>&rdquo;
+              <span className="font-custom2">Result for </span>
+              <span className="text-white">&quot;{activeQuery.trim()}&quot;</span>
             </span>
           ) : (
-            <span>Explore & Search</span>
+            <span className="font-custom2">Explore & Search</span>
           )}
         </h1>
 
@@ -271,8 +272,8 @@ export default function SearchContent() {
                 item.genres && item.genres.length > 0
                   ? item.genres[0]
                   : item.type === "TV Series"
-                  ? "Drama"
-                  : "Movie";
+                    ? "Drama"
+                    : "Movie";
 
               return (
                 <Link

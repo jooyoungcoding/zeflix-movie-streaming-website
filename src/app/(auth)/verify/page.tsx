@@ -1,96 +1,217 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Mail, Loader2, AlertCircle, ArrowRight } from "lucide-react";
-import toast from "react-hot-toast";
+import { CheckCircle2, Mail, Loader2, AlertCircle, ArrowRight, LogIn } from "lucide-react";
+import type { User, EmailOtpType } from "@supabase/supabase-js";
 import { supabase } from "@/libs/supabase";
 import { useAuthStore } from "@/store/auth.store";
+import { getCurrentUser } from "@/features/auth/api/auth.api";
+
+type VerifyStatus = "checking" | "verified" | "verified_need_login" | "waiting" | "error";
+
+interface AuthUserLike {
+    id: string;
+    email?: string | null;
+    user_metadata?: {
+        profile_id?: string;
+        avatar_url?: string;
+        picture?: string;
+        username?: string;
+        user_name?: string;
+        display_name?: string;
+        full_name?: string;
+        name?: string;
+        email?: string;
+    };
+}
 
 export default function VerifyEmailPage() {
     const router = useRouter();
-    const [status, setStatus] = useState<"checking" | "verified" | "waiting" | "error">("checking");
+    const [status, setStatus] = useState<VerifyStatus>("checking");
     const [errorMessage, setErrorMessage] = useState<string>("");
-    const hasTriggeredRef = React.useRef(false);
+    const [countdown, setCountdown] = useState<number>(3);
+    const hasTriggeredRef = useRef(false);
 
     useEffect(() => {
         let isMounted = true;
 
-        const handleSuccess = (userId?: string) => {
+        const handleSuccess = async (user?: User | AuthUserLike | null) => {
             if (hasTriggeredRef.current) return;
             hasTriggeredRef.current = true;
-            if (userId) {
+
+            if (user?.id) {
+                const userEmail = user.email || null;
+                const metadata = user.user_metadata || null;
+
                 useAuthStore.getState().setAuth({
-                    user_id: userId,
-                    profile_id: userId,
+                    user_id: user.id,
+                    profile_id: metadata?.profile_id || user.id,
+                    avatar_url: metadata?.avatar_url || metadata?.picture || null,
+                    username: metadata?.username || metadata?.user_name || null,
+                    display_name: metadata?.display_name || metadata?.full_name || metadata?.name || null,
+                    email: metadata?.email || userEmail || null,
                 });
             }
+
+            // Sync with server session
+            try {
+                const serverSession = await getCurrentUser();
+                if (serverSession?.user && isMounted) {
+                    useAuthStore.getState().setAuth({
+                        user_id: serverSession.user.id,
+                        profile_id: serverSession.profile?.profile_id || serverSession.user.id,
+                        avatar_url: serverSession.profile?.avatar_url || null,
+                        username: serverSession.profile?.username || null,
+                        display_name: serverSession.profile?.display_name || null,
+                        email: serverSession.profile?.email || serverSession.user.email || null,
+                    });
+                }
+            } catch {
+                // Continue with client session
+            }
+
+            if (!isMounted) return;
             setStatus("verified");
-            toast.success("Email verified successfully! Welcome to ZEFLIX.", {
-                id: "verify-email-toast",
-            });
-            setTimeout(() => {
-                router.push("/");
-            }, 2000);
         };
 
         const handleAuthVerification = async () => {
-            // 1. Check if there are error parameters in hash or query
             const hash = typeof window !== "undefined" ? window.location.hash : "";
             const search = typeof window !== "undefined" ? window.location.search : "";
             const params = new URLSearchParams(search || hash.replace(/^#/, "?"));
+            const hashParams = new URLSearchParams(hash.replace(/^#/, ""));
 
+            // 1. Check if error parameters are present
             const error = params.get("error");
             const errorDescription = params.get("error_description");
-
             if (error || errorDescription) {
                 if (!isMounted) return;
                 setStatus("error");
                 setErrorMessage(
                     errorDescription || error || "Verification link is invalid or has expired."
                 );
-                toast.error("Email verification failed: " + (errorDescription || error), {
-                    id: "verify-error-toast",
-                });
                 return;
             }
 
-            // 2. Check current session
-            const {
-                data: { session },
-            } = await supabase.auth.getSession();
-
-            if (session?.user) {
-                if (!isMounted) return;
-                handleSuccess(session.user.id);
-                return;
+            // 2. Token hash & type flow (Email Confirmation)
+            const tokenHash = params.get("token_hash");
+            const otpType = params.get("type");
+            if (tokenHash && otpType) {
+                try {
+                    const { data, error: otpError } = await supabase.auth.verifyOtp({
+                        token_hash: tokenHash,
+                        type: otpType as EmailOtpType,
+                    });
+                    if (!otpError && (data?.user || data?.session?.user)) {
+                        await handleSuccess(data.user || data.session?.user);
+                        return;
+                    }
+                } catch {
+                    // Fall through to other checks
+                }
             }
 
-            // 3. Listen to auth state changes in case token exchange is in progress
+            // 3. PKCE code exchange flow
+            const code = params.get("code");
+            if (code) {
+                try {
+                    const { data, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+                    if (!exchangeError && (data?.user || data?.session?.user)) {
+                        await handleSuccess(data.user || data.session?.user);
+                        return;
+                    }
+
+                    // If code verifier is missing (e.g. opened in different browser/app),
+                    // the email was already verified by Supabase on the click!
+                    if (
+                        exchangeError &&
+                        (exchangeError.message.toLowerCase().includes("code verifier") ||
+                         exchangeError.message.toLowerCase().includes("both auth code and code verifier"))
+                    ) {
+                        if (!isMounted) return;
+                        setStatus("verified_need_login");
+                        return;
+                    }
+                } catch (err: unknown) {
+                    if (
+                        err instanceof Error &&
+                        (err.message.toLowerCase().includes("code verifier") ||
+                         err.message.toLowerCase().includes("both auth code and code verifier"))
+                    ) {
+                        if (!isMounted) return;
+                        setStatus("verified_need_login");
+                        return;
+                    }
+                }
+            }
+
+            // 4. Hash tokens flow (access_token & refresh_token)
+            const accessToken = hashParams.get("access_token");
+            const refreshToken = hashParams.get("refresh_token");
+            if (accessToken && refreshToken) {
+                try {
+                    const { data, error: sessionError } = await supabase.auth.setSession({
+                        access_token: accessToken,
+                        refresh_token: refreshToken,
+                    });
+                    if (!sessionError && (data?.user || data?.session?.user)) {
+                        await handleSuccess(data.user || data.session?.user);
+                        return;
+                    }
+                } catch {
+                    // Fall through to session check
+                }
+            }
+
+            // 5. Active session check
+            try {
+                const {
+                    data: { session },
+                } = await supabase.auth.getSession();
+
+                if (session?.user) {
+                    await handleSuccess(session.user);
+                    return;
+                }
+            } catch {
+                // Ignore and rely on auth state listener or timeout
+            }
+
+            // 6. Listen for auth state change
             const {
                 data: { subscription },
             } = supabase.auth.onAuthStateChange(async (event, currentSession) => {
                 if (!isMounted) return;
-
-                if (event === "SIGNED_IN" || currentSession?.user) {
-                    handleSuccess(currentSession?.user?.id);
+                if ((event === "SIGNED_IN" || event === "USER_UPDATED") && currentSession?.user) {
+                    await handleSuccess(currentSession.user);
                 }
             });
 
-            // If no session after short check and no hash token, set to waiting mode
-            const checkTimer = setTimeout(() => {
+            // 7. Safety timeout: if still not resolved after 2.5 seconds
+            const safetyTimer = setTimeout(async () => {
                 if (isMounted && !hasTriggeredRef.current) {
-                    if (!hash.includes("access_token") && !search.includes("code")) {
+                    const {
+                        data: { session: finalSession },
+                    } = await supabase.auth.getSession();
+
+                    if (finalSession?.user) {
+                        await handleSuccess(finalSession.user);
+                    } else if (!hash && !search) {
                         setStatus("waiting");
+                    } else {
+                        setStatus("error");
+                        setErrorMessage(
+                            "Verification link is invalid, expired, or has already been used."
+                        );
                     }
                 }
-            }, 1200);
+            }, 2500);
 
             return () => {
                 subscription.unsubscribe();
-                clearTimeout(checkTimer);
+                clearTimeout(safetyTimer);
             };
         };
 
@@ -99,7 +220,23 @@ export default function VerifyEmailPage() {
         return () => {
             isMounted = false;
         };
-    }, [router]);
+    }, []);
+
+    // Countdown and automatic redirect when verified
+    useEffect(() => {
+        if (status !== "verified") return;
+
+        if (countdown <= 0) {
+            router.push("/");
+            return;
+        }
+
+        const timer = setInterval(() => {
+            setCountdown((prev) => prev - 1);
+        }, 1000);
+
+        return () => clearInterval(timer);
+    }, [status, countdown, router]);
 
     return (
         <main className="min-h-screen w-full flex items-center justify-center px-4 py-12 bg-black relative overflow-hidden text-white">
@@ -139,9 +276,9 @@ export default function VerifyEmailPage() {
                     </div>
                 )}
 
-                {/* State: Verified */}
+                {/* State: Verified (Active session acquired) */}
                 {status === "verified" && (
-                    <div className="space-y-4">
+                    <div className="space-y-5">
                         <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20">
                             <CheckCircle2 className="w-9 h-9 animate-bounce" />
                         </div>
@@ -149,8 +286,45 @@ export default function VerifyEmailPage() {
                             Email Verified Successfully!
                         </h1>
                         <p className="text-sm text-zinc-300 font-custom2 leading-relaxed">
-                            Your account has been activated. Redirecting you to the home page...
+                            Your account has been activated. Redirecting you to the home page in{" "}
+                            <span className="text-emerald-400 font-bold">{countdown}s</span>...
                         </p>
+                        <div className="pt-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    router.push("/");
+                                }}
+                                className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2ca566] hover:bg-[#248a54] text-white font-custom1 font-bold text-sm transition-all duration-200 shadow-lg shadow-emerald-950/40 cursor-pointer active:scale-98"
+                            >
+                                <span>Start Watching Now</span>
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* State: Verified on different device/browser (Needs direct login) */}
+                {status === "verified_need_login" && (
+                    <div className="space-y-5">
+                        <div className="w-16 h-16 rounded-full bg-emerald-500/15 border border-emerald-500/40 flex items-center justify-center mx-auto text-emerald-400 shadow-lg shadow-emerald-500/20">
+                            <CheckCircle2 className="w-9 h-9" />
+                        </div>
+                        <h1 className="text-2xl font-bold font-custom1 text-white">
+                            Email Verified Successfully!
+                        </h1>
+                        <p className="text-sm text-zinc-300 font-custom2 leading-relaxed">
+                            Your email has been confirmed. Please log in with your email and password to start enjoying movies.
+                        </p>
+                        <div className="pt-2">
+                            <Link
+                                href="/login"
+                                className="w-full inline-flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#2ca566] hover:bg-[#248a54] text-white font-custom1 font-bold text-sm transition-all duration-200 shadow-lg shadow-emerald-950/40 cursor-pointer active:scale-98"
+                            >
+                                <LogIn className="w-4 h-4" />
+                                <span>Log In to Your Account</span>
+                            </Link>
+                        </div>
                     </div>
                 )}
 

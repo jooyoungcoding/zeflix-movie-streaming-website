@@ -12,13 +12,15 @@ import {
   getCurrentUserRepository,
   logoutRepository,
   findProfileById,
+  findProfileByEmail,
 } from "../repository/auth.repository";
 import { Profile } from "@/types/Profile";
 
 export const signUpService = async (
-  data: SignUpRequest
+  data: SignUpRequest,
+  originUrl?: string
 ): Promise<SignUpResponse> => {
-  return await signUpRepository(data);
+  return await signUpRepository(data, originUrl);
 };
 
 export const loginService = async (
@@ -52,6 +54,12 @@ export const getUserProfileService = async (
   profileId: string
 ): Promise<Profile | null> => {
   return await findProfileById(profileId);
+};
+
+export const findProfileByEmailService = async (
+  email: string
+): Promise<Profile | null> => {
+  return await findProfileByEmail(email);
 };
 
 

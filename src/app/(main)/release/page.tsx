@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -84,8 +84,7 @@ export default function ReleasePage() {
         };
     }, []);
 
-    // Fetch release schedule whenever year or region changes
-    const loadReleases = async () => {
+    const loadReleases = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
@@ -101,11 +100,38 @@ export default function ReleasePage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [selectedYear, selectedRegion]);
+
+    const isFirstRender = useRef(true);
 
     useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            let isMounted = true;
+            fetchReleases({
+                year: selectedYear,
+                region: selectedRegion,
+            })
+                .then((res) => {
+                    if (isMounted) {
+                        setMonths(res.months || []);
+                        setVisibleCounts({});
+                    }
+                })
+                .catch((err) => {
+                    console.error("Failed to load releases:", err);
+                    if (isMounted) setError("Unable to load releases.");
+                })
+                .finally(() => {
+                    if (isMounted) setIsLoading(false);
+                });
+            return () => {
+                isMounted = false;
+            };
+        }
+
         loadReleases();
-    }, [selectedYear, selectedRegion]);
+    }, [loadReleases, selectedYear, selectedRegion]);
 
     // Handle outside click to close dropdowns
     useEffect(() => {
@@ -176,7 +202,7 @@ export default function ReleasePage() {
                     </h1>
 
                     <p className="text-zinc-400 text-xs sm:text-sm md:text-base font-custom2 max-w-2xl">
-                        Get up to date to movie schedule release all around the world
+                        {subtitleText}
                     </p>
                 </div>
             </section>
@@ -466,7 +492,7 @@ export default function ReleasePage() {
                                                                     )}
                                                                 </h3>
 
-                                                                {/* Thể loại +N và rating(nếu có) */}
+                                                                {/* Genres +N and rating (if available) */}
                                                                 <div className="text-xs text-zinc-400 truncate flex items-center gap-2">
                                                                     {movie.genres.length > 0 && (
                                                                         <span>

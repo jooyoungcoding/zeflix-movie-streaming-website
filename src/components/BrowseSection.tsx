@@ -33,46 +33,60 @@ type MediaTypeTab = "all" | "movies" | "tv";
 export default function BrowseSection() {
   const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState<MediaTypeTab>("all");
-  const [selectedCountry, setSelectedCountry] = useState<string>("all");
-  const [selectedGenre, setSelectedGenre] = useState<string>("all");
-  const [selectedSort, setSelectedSort] = useState<string>("all");
-
-  // Sync state from URL query parameters if present
-  useEffect(() => {
-    if (!searchParams) return;
-
+  const getInitialTab = (): MediaTypeTab => {
+    if (!searchParams) return "all";
     const tabParam = searchParams.get("tab") || searchParams.get("type");
     if (tabParam === "all" || tabParam === "movies" || tabParam === "tv") {
-      setActiveTab(tabParam as MediaTypeTab);
+      return tabParam as MediaTypeTab;
     }
+    return "all";
+  };
 
+  const getInitialCountry = (): string => {
+    if (!searchParams) return "all";
     const countryParam = searchParams.get("country");
     if (countryParam) {
-      setSelectedCountry(
-        countryParam.toLowerCase() === "all" ? "all" : countryParam.toUpperCase()
-      );
+      return countryParam.toLowerCase() === "all" ? "all" : countryParam.toUpperCase();
     }
+    return "all";
+  };
 
-    const genreParam = searchParams.get("genre");
-    if (genreParam) {
-      setSelectedGenre(genreParam);
-    }
+  const getInitialGenre = (): string => {
+    if (!searchParams) return "all";
+    return searchParams.get("genre") || "all";
+  };
 
+  const getInitialSort = (): string => {
+    if (!searchParams) return "all";
     const sortParam = searchParams.get("sort");
-    if (sortParam) {
-      if (
-        sortParam === "new-releases" ||
-        sortParam === "new-released" ||
-        sortParam === "new_releases" ||
-        sortParam === "new_released"
-      ) {
-        setSelectedSort("new-releases");
-      } else {
-        setSelectedSort(sortParam);
-      }
+    if (
+      sortParam === "new-releases" ||
+      sortParam === "new-released" ||
+      sortParam === "new_releases" ||
+      sortParam === "new_released"
+    ) {
+      return "new-releases";
     }
-  }, [searchParams]);
+    return sortParam || "all";
+  };
+
+  const [activeTab, setActiveTab] = useState<MediaTypeTab>(getInitialTab);
+  const [selectedCountry, setSelectedCountry] = useState<string>(getInitialCountry);
+  const [selectedGenre, setSelectedGenre] = useState<string>(getInitialGenre);
+  const [selectedSort, setSelectedSort] = useState<string>(getInitialSort);
+  // Sync state from URL query parameters during render if changed without cascading effects
+  const [prevParamsString, setPrevParamsString] = useState(
+    () => searchParams?.toString() || ""
+  );
+  const currentParamsString = searchParams?.toString() || "";
+
+  if (prevParamsString !== currentParamsString) {
+    setPrevParamsString(currentParamsString);
+    setActiveTab(getInitialTab());
+    setSelectedCountry(getInitialCountry());
+    setSelectedGenre(getInitialGenre());
+    setSelectedSort(getInitialSort());
+  }
 
   // Auto-scroll into view when navigation contains filter query parameters or #browse-section hash
   useEffect(() => {
@@ -299,13 +313,6 @@ export default function BrowseSection() {
     setSelectedCountry("all");
     setSelectedGenre("all");
     setSelectedSort("all");
-  };
-
-  // Format genre presentation
-  const formatGenreDisplay = (genresList: string[]) => {
-    if (!genresList || genresList.length === 0) return "General";
-    if (genresList.length === 1) return genresList[0];
-    return `${genresList[0]} +${genresList.length - 1}`;
   };
 
   const selectedCountryLabel =

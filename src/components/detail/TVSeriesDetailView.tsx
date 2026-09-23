@@ -111,33 +111,11 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
 
       if (res.success) {
         setIsWatchlist(res.data.isAdded);
-        if (res.data.isAdded) {
-          toast.success(`Added "${tv.title}" to Watchlist!`, {
-            id: `fav-${tv.id}`,
-            icon: "🔖",
-            duration: 2500,
-            style: {
-              background: "#12151c",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          });
-        } else {
-          toast(`Removed "${tv.title}" from Watchlist`, {
-            id: `fav-${tv.id}`,
-            icon: "🗑️",
-            duration: 2000,
-            style: {
-              background: "#12151c",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          });
-        }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       setIsWatchlist(!nextState);
-      toast.error(err.message || "Failed to update watchlist", {
+      const msg = err instanceof Error ? err.message : "Failed to update watchlist";
+      toast.error(msg, {
         id: `fav-err-${tv.id}`,
       });
     } finally {
@@ -189,17 +167,17 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
               alt={tv.title}
               fill
               priority
-              className="object-cover object-center brightness-[0.38]"
+              className="object-cover object-center brightness-[0.55] sm:brightness-[0.38] transition-all duration-300"
               sizes="100vw"
             />
           ) : (
             <div className="w-full h-full bg-[#0d1017]" />
           )}
 
-          {/* Gradients */}
-          <div className="absolute top-0 inset-x-0 h-32 bg-gradient-to-b from-black via-black/60 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-transparent lg:w-3/4" />
-          <div className="absolute bottom-0 inset-x-0 h-44 bg-gradient-to-t from-black via-black/90 to-transparent" />
+          {/* Gradients: Lighter on mobile so backdrop shines through, deeper on desktop for readability */}
+          <div className="absolute top-0 inset-x-0 h-20 sm:h-32 bg-gradient-to-b from-black/70 via-black/20 to-transparent sm:from-black sm:via-black/60" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent sm:bg-gradient-to-r sm:from-black sm:via-black/80 sm:to-transparent lg:w-3/4" />
+          <div className="absolute bottom-0 inset-x-0 h-24 sm:h-44 bg-gradient-to-t from-black via-black/60 sm:via-black/90 to-transparent" />
         </div>
 
         {/* Hero Content */}
@@ -218,11 +196,11 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
             <div className="max-w-3xl space-y-3.5 sm:space-y-4">
               {/* Tag Badge */}
               {tv.tagline ? (
-                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs sm:text-[13px] font-custom2 tracking-wide">
+                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs sm:text-[13px] font-custom2 tracking-wide shadow-sm">
                   <span>{tv.tagline}</span>
                 </div>
               ) : tv.seasons.length > 0 ? (
-                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs sm:text-[13px] font-custom2 tracking-wide">
+                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-white text-xs sm:text-[13px] font-custom2 tracking-wide shadow-sm">
                   <span>
                     {tv.seasons.length > 1
                       ? `${tv.seasons.length} Seasons Available`
@@ -232,7 +210,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
               ) : null}
 
               {/* Title */}
-              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white tracking-tight leading-tight">
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-md">
                 {tv.title}
               </h1>
 
@@ -290,22 +268,22 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 {!(
                   tv.isUpcoming ??
                   (Boolean(tv.releaseDate && tv.releaseDate > new Date().toISOString().split("T")[0]) ||
-                   Boolean(
-                     tv.status &&
-                     !["returning series", "ended", "canceled", "released"].includes(
-                       tv.status.toLowerCase()
-                     )
-                   ))
+                    Boolean(
+                      tv.status &&
+                      !["returning series", "ended", "canceled", "released"].includes(
+                        tv.status.toLowerCase()
+                      )
+                    ))
                 ) && (
-                  <button
-                    type="button"
-                    onClick={handleWatchNow}
-                    className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white shrink-0" />
-                    <span>Watch Now</span>
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={handleWatchNow}
+                      className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-white shrink-0" />
+                      <span>Watch Now</span>
+                    </button>
+                  )}
 
                 {/* Watchlist Bookmark Button */}
                 <button
@@ -316,18 +294,18 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                   {isWatchlist ? (
                     <>
                       <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 scale-110 shrink-0 transition-transform" />
-                      <span className="truncate">Added to Watchlist</span>
+                      <span className="truncate">Watchlist</span>
                     </>
                   ) : (
                     <>
                       <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white group-hover/fav:text-yellow-400 group-hover/fav:scale-110 shrink-0 transition-all" />
-                      <span className="truncate">Add Watchlist</span>
+                      <span className="truncate">Watchlist</span>
                     </>
                   )}
                 </button>
               </div>
 
-              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link nằm ngang cân xứng) */}
+              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link horizontally balanced) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-start md:justify-end md:ml-auto">
                 {tv.trailerId && (
                   <button

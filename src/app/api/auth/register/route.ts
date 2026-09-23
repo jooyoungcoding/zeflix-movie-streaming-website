@@ -6,13 +6,22 @@ export async function POST(request: NextRequest) {
   try {
     const body: SignUpRequest = await request.json();
 
-    const result = await signUpController(body);
+    const host = request.headers.get("x-forwarded-host") || request.headers.get("host");
+    const proto = request.headers.get("x-forwarded-proto") || "https";
+    const origin =
+      request.headers.get("origin") ||
+      (host ? `${proto}://${host}` : null) ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      request.nextUrl.origin ||
+      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+    const result = await signUpController(body, origin);
 
     return NextResponse.json(result, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/auth/register] Error:", error);
 
-    const errorMessage = error?.message || "Internal Server Error";
+    const errorMessage = error instanceof Error ? error.message : "Internal Server Error";
 
     // Handle known business validation / duplicate errors
     if (

@@ -23,9 +23,9 @@ export class MultiServerProvider implements VideoProvider {
         isDefault: true,
       },
       {
-        id: "server-vidsrc-cc",
+        id: "server-2embed",
         name: "Server 2",
-        url: `https://vidsrc.cc/v2/embed/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
+        url: `https://www.2embed.cc/embed/${cleanId}`,
       },
       {
         id: "server-autoembed",
@@ -53,15 +53,13 @@ export class MultiServerProvider implements VideoProvider {
   async getEpisodeSource(
     tmdbId: string,
     seasonNumber: number,
-    episodeNumber: number,
-    hasNextEpisode: boolean = true
+    episodeNumber: number
   ): Promise<VideoSource | null> {
     const cleanId = this.sanitizeTmdbId(tmdbId);
     if (!cleanId) return null;
 
     const s = Math.max(1, Math.floor(seasonNumber));
     const ep = Math.max(1, Math.floor(episodeNumber));
-    const nextBtnParam = hasNextEpisode ? "nextbutton=true" : "nextbutton=false";
 
     const servers: VideoServerOption[] = [
       {
@@ -71,9 +69,9 @@ export class MultiServerProvider implements VideoProvider {
         isDefault: true,
       },
       {
-        id: "server-vidsrc-cc",
+        id: "server-2embed",
         name: "Server 2",
-        url: `https://vidsrc.cc/v2/embed/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`,
+        url: `https://www.2embed.cc/embedtv/${cleanId}?s=${s}&e=${ep}`,
       },
       {
         id: "server-autoembed",

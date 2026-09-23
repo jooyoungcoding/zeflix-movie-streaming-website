@@ -3,11 +3,11 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Check } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { requestSignUp } from "../api/auth.api";
-import { useAuthStore } from "@/store/auth.store";
 import GoogleLoginButton from "./GoogleLoginButton";
 
 interface RegisterComponentProps {
@@ -19,6 +19,7 @@ export default function RegisterComponent({
   onCancel,
   onSuccess,
 }: RegisterComponentProps) {
+  const router = useRouter();
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,27 +61,11 @@ export default function RegisterComponent({
     setIsLoading(true);
 
     try {
-      const response = await requestSignUp({
+      await requestSignUp({
         username: username.trim(),
         email: email.trim(),
         password,
       });
-
-      if (response.user?.id) {
-        useAuthStore.getState().setAuth({
-          user_id: response.user.id,
-          profile_id: response.profile?.profile_id || response.user.id,
-          avatar_url: response.profile?.avatar_url || null,
-          username: response.profile?.username || username.trim(),
-          display_name: response.profile?.display_name || username.trim(),
-          email: response.profile?.email || email.trim(),
-        });
-      }
-
-      toast.success(
-        response.message || "Registration successful! Please check your email to verify.",
-        { duration: 6000 }
-      );
 
       // Reset form
       setUsername("");
@@ -90,9 +75,12 @@ export default function RegisterComponent({
 
       if (onSuccess) {
         onSuccess();
+      } else {
+        router.push("/verify");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create account. Please try again.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to create account. Please try again.";
+      toast.error(msg);
     } finally {
       setIsLoading(false);
     }
@@ -111,6 +99,7 @@ export default function RegisterComponent({
                 alt="ZEFLIX Logo"
                 width={32}
                 height={32}
+                style={{ width: "auto", height: "auto" }}
                 className="object-contain drop-shadow-[0_2px_8px_rgba(255,255,255,0.25)]"
                 priority
               />

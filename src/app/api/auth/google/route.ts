@@ -8,12 +8,12 @@ export async function GET() {
     return NextResponse.json({
       url,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[GET /api/auth/google] Error:", error);
-
+    const msg = error instanceof Error ? error.message : "Failed to initialize Google login";
     return NextResponse.json(
       {
-        error: error?.message || "Failed to initialize Google login",
+        error: msg,
       },
       {
         status: 500,

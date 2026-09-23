@@ -12,15 +12,13 @@ import {
   getCurrentUserService,
   logoutService,
   getUserProfileService,
+  findProfileByEmailService,
 } from "../service/auth.service";
-import {
-  findProfileByUsername,
-  findProfileByEmail,
-} from "../repository/auth.repository";
 import { Profile } from "@/types/Profile";
 
 export const signUpController = async (
-  data: SignUpRequest
+  data: SignUpRequest,
+  originUrl?: string
 ): Promise<SignUpResponse> => {
   const username = data?.username?.trim();
   const email = data?.email?.trim().toLowerCase();
@@ -43,23 +41,21 @@ export const signUpController = async (
     throw new Error("Password must be at least 6 characters long");
   }
 
-  // 2. Check existence
-  const existingUserByUsername = await findProfileByUsername(username);
-  if (existingUserByUsername) {
-    throw new Error("Username is already taken");
-  }
-
-  const existingUserByEmail = await findProfileByEmail(email);
+  // 2. Check email existence (login is done by email)
+  const existingUserByEmail = await findProfileByEmailService(email);
   if (existingUserByEmail) {
     throw new Error("Email is already registered");
   }
 
   // 3. Call Service
-  return await signUpService({
-    username,
-    email,
-    password,
-  });
+  return await signUpService(
+    {
+      username,
+      email,
+      password,
+    },
+    originUrl
+  );
 };
 
 export const loginController = async (

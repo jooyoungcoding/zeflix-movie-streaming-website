@@ -9,8 +9,8 @@ export interface MediaPayload {
   poster_path?: string | null;
   backdrop_path?: string | null;
   vote_average?: number;
-  release_date?: string;
-  overview?: string;
+  release_date?: string | null;
+  overview?: string | null;
 }
 
 export interface ToggleWatchlistRequest extends MediaPayload {

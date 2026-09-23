@@ -5,10 +5,11 @@ export async function POST() {
   try {
     await logoutController();
     return NextResponse.json({ message: "Logged out successfully" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[POST /api/auth/logout] Error:", error);
+    const msg = error instanceof Error ? error.message : "Failed to logout";
     return NextResponse.json(
-      { error: error?.message || "Failed to logout" },
+      { error: msg },
       { status: 500 }
     );
   }

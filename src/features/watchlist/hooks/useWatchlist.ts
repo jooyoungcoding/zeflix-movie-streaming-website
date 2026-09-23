@@ -16,9 +16,9 @@ export function useWatchlist() {
   const [items, setItems] = useState<WatchlistItemDto[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const userId = useAuthStore((state) => state.user_id);
 
   const fetchWatchlist = useCallback(async () => {
-    const userId = useAuthStore.getState().user_id;
     if (!userId) {
       setItems([]);
       setIsLoading(false);
@@ -32,20 +32,20 @@ export function useWatchlist() {
       if (res.success) {
         setItems(res.data);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("useWatchlist fetch error:", err);
-      setError(err.message || "Failed to load watchlist");
+      const msg = err instanceof Error ? err.message : "Failed to load watchlist";
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   const toggleItem = useCallback(
     async (
       media: ToggleWatchlistRequest,
       onSuccess?: (isAdded: boolean) => void
     ) => {
-      const userId = useAuthStore.getState().user_id;
       if (!userId) {
         useAuthModalStore.getState().openModal({
           title: "Sign in to add to Watchlist",
@@ -58,28 +58,7 @@ export function useWatchlist() {
         const res = await requestToggleWatchlist(media);
         if (res.success) {
           const isAdded = res.data.isAdded;
-          if (isAdded) {
-            toast.success(`Added "${media.title}" to Watchlist!`, {
-              id: `wl-${media.tmdb_id}`,
-              icon: "🔖",
-              duration: 2500,
-              style: {
-                background: "#12151c",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.1)",
-              },
-            });
-          } else {
-            toast(`Removed "${media.title}" from Watchlist`, {
-              id: `wl-${media.tmdb_id}`,
-              icon: "🗑️",
-              duration: 2000,
-              style: {
-                background: "#12151c",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.1)",
-              },
-            });
+          if (!isAdded) {
             // Also update internal state if we have the list loaded
             setItems((prev) =>
               prev.filter((i) => i.content.tmdb_id !== media.tmdb_id)
@@ -90,33 +69,26 @@ export function useWatchlist() {
           }
           return isAdded;
         }
-      } catch (err: any) {
-        toast.error(err.message || "Failed to update watchlist", {
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : "Failed to update watchlist";
+        toast.error(msg, {
           id: `wl-err-${media.tmdb_id}`,
         });
         throw err;
       }
     },
-    []
+    [userId]
   );
 
-  const removeItemById = useCallback(async (watchlistId: string, title?: string) => {
+  const removeItemById = useCallback(async (watchlistId: string, _title?: string) => {
     // Optimistic removal
     setItems((prev) => prev.filter((item) => item.watchlist_id !== watchlistId));
 
     try {
       await requestDeleteWatchlistById(watchlistId);
-      toast(title ? `Removed "${title}" from Watchlist` : "Removed from Watchlist", {
-        icon: "🗑️",
-        duration: 2000,
-        style: {
-          background: "#12151c",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.1)",
-        },
-      });
-    } catch (err: any) {
-      toast.error(err.message || "Failed to remove item");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to remove item";
+      toast.error(msg);
       // Re-fetch to restore state on failure
       fetchWatchlist();
     }

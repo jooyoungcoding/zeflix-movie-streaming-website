@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -11,11 +11,23 @@ import {
   SkipForward,
   FastForward,
   X,
-  Maximize,
   Minimize,
 } from "lucide-react";
 import { VideoSource, VideoServerOption } from "@/infrastructure/video/video.types";
 import { EpisodeItem, SeasonItem } from "@/domain/movie/movie.types";
+
+interface VendorFullscreenElement extends HTMLDivElement {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+  msRequestFullscreen?: () => Promise<void> | void;
+}
+
+interface VendorFullscreenDocument extends Document {
+  webkitExitFullscreen?: () => Promise<void> | void;
+  msExitFullscreen?: () => Promise<void> | void;
+  webkitFullscreenElement?: Element | null;
+  mozFullScreenElement?: Element | null;
+  msFullscreenElement?: Element | null;
+}
 
 interface VideoPlayerProps {
   source: VideoSource | null;
@@ -41,7 +53,20 @@ export default function VideoPlayer({
   episodes,
 }: VideoPlayerProps) {
   const router = useRouter();
-  const [selectedServerUrl, setSelectedServerUrl] = useState<string>("");
+
+  // Sync server list and initialize selected server
+  const servers: VideoServerOption[] = useMemo(
+    () =>
+      source?.servers ||
+      (source?.url ? [{ id: "default", name: "Default Server", url: source.url }] : []),
+    [source]
+  );
+
+  const [selectedServerUrl, setSelectedServerUrl] = useState<string>(
+    () => servers[0]?.url || source?.url || ""
+  );
+  const [activeSeason, setActiveSeason] = useState<number | undefined>(currentSeason);
+  const [activeEpisode, setActiveEpisode] = useState<number | undefined>(currentEpisode);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [reloadKey, setReloadKey] = useState<number>(0);
@@ -53,41 +78,71 @@ export default function VideoPlayer({
   const containerRef = useRef<HTMLDivElement>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hudTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentSeasonRef = useRef<number | undefined>(currentSeason);
   const currentEpisodeRef = useRef<number | undefined>(currentEpisode);
-  const selectedServerUrlRef = useRef<string>("");
+  const selectedServerUrlRef = useRef<string>(servers[0]?.url || source?.url || "");
+  const isFirstRender = useRef<boolean>(true);
 
+  // Sync season/episode state during render when props change without cascading renders
+  const [prevEpisodes, setPrevEpisodes] = useState({ currentSeason, currentEpisode });
+  if (
+    prevEpisodes.currentSeason !== currentSeason ||
+    prevEpisodes.currentEpisode !== currentEpisode
+  ) {
+    setPrevEpisodes({ currentSeason, currentEpisode });
+    setActiveSeason(currentSeason);
+    setActiveEpisode(currentEpisode);
+  }
+
+  // Synchronize ref with current active season/episode for event handlers
   useEffect(() => {
-    currentSeasonRef.current = currentSeason;
-    currentEpisodeRef.current = currentEpisode;
-  }, [currentSeason, currentEpisode]);
+    currentSeasonRef.current = activeSeason;
+    currentEpisodeRef.current = activeEpisode;
+  }, [activeSeason, activeEpisode]);
 
   useEffect(() => {
     selectedServerUrlRef.current = selectedServerUrl;
   }, [selectedServerUrl]);
 
-  // Sync server list and initialize selected server
-  const servers: VideoServerOption[] =
-    source?.servers ||
-    (source?.url ? [{ id: "default", name: "Default Server", url: source.url }] : []);
-
+  // Initial safety timeout on mount
   useEffect(() => {
-    if (servers.length > 0) {
-      setSelectedServerUrl(servers[0].url);
-    } else if (source?.url) {
-      setSelectedServerUrl(source.url);
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false);
+    }, 8000);
+    return () => {
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
+  }, []);
+
+  // Sync on source/reloadKey change (skip first mount to avoid cascading setState)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
+    const targetUrl = servers[0]?.url || source?.url || "";
+    setSelectedServerUrl(targetUrl);
     setIsLoading(true);
     setHasError(false);
     setCountdown(null);
-  }, [source?.url, reloadKey]);
+
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false);
+    }, 8000);
+
+    return () => {
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
+  }, [source?.url, reloadKey, servers]);
 
   // Helper to calculate the exact next (season, episode) target across season boundaries
   const getNextEpisodeTarget = useCallback(
     (seasonNum?: number, epNum?: number): { season: number; episode: number } | null => {
       if (!tvId) return null;
-      const s = seasonNum !== undefined ? seasonNum : (currentSeasonRef.current || 1);
-      const ep = epNum !== undefined ? epNum : (currentEpisodeRef.current || 1);
+      const s = seasonNum !== undefined ? seasonNum : (activeSeason || 1);
+      const ep = epNum !== undefined ? epNum : (activeEpisode || 1);
 
       if (seasons && seasons.length > 0) {
         const currentSeasonObj = seasons.find((item) => Number(item.seasonNumber) === Number(s));
@@ -118,7 +173,7 @@ export default function VideoPlayer({
 
       return null;
     },
-    [tvId, seasons, episodes, nextEpisodeUrl]
+    [tvId, seasons, episodes, nextEpisodeUrl, activeSeason, activeEpisode]
   );
 
   // Helper to dynamically check if a next episode exists (same season or next season)
@@ -155,8 +210,8 @@ export default function VideoPlayer({
       if (currentUrl.includes("vidlink.pro")) {
         return `https://vidlink.pro/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true&nextbutton=false`;
       }
-      if (currentUrl.includes("vidsrc.cc")) {
-        return `https://vidsrc.cc/v2/embed/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`;
+      if (currentUrl.includes("2embed.cc")) {
+        return `https://www.2embed.cc/embedtv/${tvId}?s=${s}&e=${ep}`;
       }
       if (currentUrl.includes("autoembed.cc")) {
         return `https://player.autoembed.cc/embed/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`;
@@ -176,6 +231,8 @@ export default function VideoPlayer({
     (season: number, episode: number) => {
       if (!tvId) return;
 
+      setActiveSeason(season);
+      setActiveEpisode(episode);
       currentSeasonRef.current = season;
       currentEpisodeRef.current = episode;
       setCountdown(null);
@@ -184,6 +241,12 @@ export default function VideoPlayer({
 
       const newUrl = buildServerUrl(selectedServerUrlRef.current, season, episode);
       setSelectedServerUrl(newUrl);
+
+      // Reset safety-net timeout so loading never gets permanently stuck after episode switch
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = setTimeout(() => {
+        setIsLoading(false);
+      }, 8000);
 
       // 1. Dispatch custom event for real-time UI synchronization in EpisodesTab
       window.dispatchEvent(
@@ -205,22 +268,24 @@ export default function VideoPlayer({
   // Fullscreen management on the outer container element to prevent browser shrinking on stream navigation
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
+    const el = containerRef.current as VendorFullscreenElement;
+    const doc = document as VendorFullscreenDocument;
 
-    if (!document.fullscreenElement) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen().catch(() => {});
-      } else if ((containerRef.current as any).webkitRequestFullscreen) {
-        (containerRef.current as any).webkitRequestFullscreen();
-      } else if ((containerRef.current as any).msRequestFullscreen) {
-        (containerRef.current as any).msRequestFullscreen();
+    if (!doc.fullscreenElement) {
+      if (el.requestFullscreen) {
+        el.requestFullscreen().catch(() => {});
+      } else if (el.webkitRequestFullscreen) {
+        el.webkitRequestFullscreen();
+      } else if (el.msRequestFullscreen) {
+        el.msRequestFullscreen();
       }
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen().catch(() => {});
-      } else if ((document as any).webkitExitFullscreen) {
-        (document as any).webkitExitFullscreen();
-      } else if ((document as any).msExitFullscreen) {
-        (document as any).msExitFullscreen();
+      if (doc.exitFullscreen) {
+        doc.exitFullscreen().catch(() => {});
+      } else if (doc.webkitExitFullscreen) {
+        doc.webkitExitFullscreen();
+      } else if (doc.msExitFullscreen) {
+        doc.msExitFullscreen();
       }
     }
   }, []);
@@ -228,11 +293,12 @@ export default function VideoPlayer({
   // Listen for fullscreen change events & keyboard shortcut 'F'
   useEffect(() => {
     const handleFullscreenChange = () => {
+      const doc = document as VendorFullscreenDocument;
       const fullElem =
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).mozFullScreenElement ||
-        (document as any).msFullscreenElement;
+        doc.fullscreenElement ||
+        doc.webkitFullscreenElement ||
+        doc.mozFullScreenElement ||
+        doc.msFullscreenElement;
 
       const isFull = !!fullElem;
       setIsFullscreen(isFull);
@@ -248,10 +314,11 @@ export default function VideoPlayer({
           containerRef.current.contains(fullElem)
         ) {
           try {
-            if (containerRef.current.requestFullscreen) {
-              containerRef.current.requestFullscreen().catch(() => {});
-            } else if ((containerRef.current as any).webkitRequestFullscreen) {
-              (containerRef.current as any).webkitRequestFullscreen();
+            const el = containerRef.current as VendorFullscreenElement;
+            if (el.requestFullscreen) {
+              el.requestFullscreen().catch(() => {});
+            } else if (el.webkitRequestFullscreen) {
+              el.webkitRequestFullscreen();
             }
           } catch {
             // Ignore if browser restricts elevation
@@ -338,11 +405,12 @@ export default function VideoPlayer({
         }
 
         // Deep helper to extract season and episode numbers from any nested structure
-        const findNum = (obj: any, keys: string[]): number | undefined => {
+        const findNum = (obj: unknown, keys: string[]): number | undefined => {
           if (!obj || typeof obj !== "object") return undefined;
+          const rec = obj as Record<string, unknown>;
           for (const k of keys) {
-            if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") {
-              const val = parseInt(String(obj[k]), 10);
+            if (rec[k] !== undefined && rec[k] !== null && rec[k] !== "") {
+              const val = parseInt(String(rec[k]), 10);
               if (!isNaN(val) && val > 0) return val;
             }
           }
@@ -418,6 +486,8 @@ export default function VideoPlayer({
         ) {
           currentSeasonRef.current = targetSeason;
           currentEpisodeRef.current = targetEpisode;
+          setActiveSeason(targetSeason);
+          setActiveEpisode(targetEpisode);
 
           // 1. Dispatch custom event for real-time UI synchronization in EpisodesTab
           window.dispatchEvent(
@@ -454,19 +524,20 @@ export default function VideoPlayer({
   useEffect(() => {
     if (countdown === null) return;
 
-    if (countdown <= 0) {
-      const nextTarget = getNextEpisodeTarget();
-      if (nextTarget) {
-        switchToEpisode(nextTarget.season, nextTarget.episode);
-      } else if (nextEpisodeUrl) {
-        router.push(nextEpisodeUrl);
-      }
-      setCountdown(null);
-      return;
-    }
-
     countdownTimerRef.current = setTimeout(() => {
-      setCountdown((prev) => (prev !== null ? prev - 1 : null));
+      setCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          const nextTarget = getNextEpisodeTarget();
+          if (nextTarget) {
+            switchToEpisode(nextTarget.season, nextTarget.episode);
+          } else if (nextEpisodeUrl) {
+            router.push(nextEpisodeUrl);
+          }
+          return null;
+        }
+        return prev - 1;
+      });
     }, 1000);
 
     return () => {
@@ -474,8 +545,12 @@ export default function VideoPlayer({
     };
   }, [countdown, nextEpisodeUrl, router, switchToEpisode, getNextEpisodeTarget]);
 
-  // Handle iframe load with smooth buffer to mask provider's internal data fetch phase
+  // Handle iframe load — clear the loading state and cancel the safety-net timeout
   const handleIframeLoad = () => {
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
+      loadingTimeoutRef.current = null;
+    }
     setTimeout(() => {
       setIsLoading(false);
     }, 2500);
@@ -487,6 +562,12 @@ export default function VideoPlayer({
     setIsLoading(true);
     setHasError(false);
     setSelectedServerUrl(url);
+
+    // Reset safety-net timeout on every manual server switch
+    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    loadingTimeoutRef.current = setTimeout(() => {
+      setIsLoading(false);
+    }, 8000);
   };
 
   // Handle retry
@@ -533,9 +614,9 @@ export default function VideoPlayer({
     ? getDisplayEpisodeNumber(nextTarget.season, nextTarget.episode)
     : 1;
   const currentDisplayEpisodeNumber =
-    currentSeasonRef.current && currentEpisodeRef.current
-      ? getDisplayEpisodeNumber(currentSeasonRef.current, currentEpisodeRef.current)
-      : currentEpisodeRef.current || 1;
+    activeSeason && activeEpisode
+      ? getDisplayEpisodeNumber(activeSeason, activeEpisode)
+      : activeEpisode || 1;
 
   // Case 2: Source exists (Multi-server player)
   return (
@@ -558,9 +639,9 @@ export default function VideoPlayer({
               <span className="text-white font-bold text-base sm:text-lg tracking-wide drop-shadow-md">
                 {title}
               </span>
-              {currentSeasonRef.current && (
+              {activeSeason && (
                 <span className="text-xs bg-emerald-500/20 text-emerald-400 font-semibold px-2.5 py-0.5 rounded-lg border border-emerald-500/30">
-                  S{currentSeasonRef.current} : E{currentDisplayEpisodeNumber}
+                  S{activeSeason} : E{currentDisplayEpisodeNumber}
                 </span>
               )}
             </div>
@@ -750,7 +831,12 @@ export default function VideoPlayer({
         {servers.length > 1 && (
           <div className="flex flex-wrap items-center gap-2">
             {servers.map((srv) => {
-              const isActive = srv.url === selectedServerUrl;
+              // Match by provider hostname rather than exact URL so the active
+              // indicator stays correct after episode switching (URL changes per episode)
+              const getProviderKey = (url: string) => {
+                try { return new URL(url).hostname; } catch { return url; }
+              };
+              const isActive = getProviderKey(srv.url) === getProviderKey(selectedServerUrl);
               return (
                 <button
                   key={srv.id}
