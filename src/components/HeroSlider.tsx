@@ -126,12 +126,12 @@ export default function HeroSlider() {
     try {
       const res = await requestToggleWatchlist({
         tmdb_id: tmdbId,
-        type: "movie",
+        type: movie.media_type || "movie",
         title: movie.title,
-        poster_path: null,
+        poster_path: movie.poster_path || movie.poster || movie.backdrop || null,
         backdrop_path: movie.backdrop,
-        vote_average: 0,
-        release_date: movie.year,
+        vote_average: movie.vote_average ?? 0,
+        release_date: movie.release_date || movie.year,
         overview: movie.description,
         action: willBeAdded ? "add" : "remove",
       });
@@ -141,30 +141,6 @@ export default function HeroSlider() {
           ...prev,
           [movie.id]: res.data.isAdded,
         }));
-
-        if (res.data.isAdded) {
-          toast.success(`Added "${movie.title}" to Watchlist!`, {
-            id: `watchlist-${movie.id}`,
-            icon: "🔖",
-            style: {
-              borderRadius: "12px",
-              background: "#161922",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.15)",
-            },
-          });
-        } else {
-          toast(`Removed "${movie.title}" from Watchlist`, {
-            id: `watchlist-${movie.id}`,
-            icon: "🗑️",
-            style: {
-              borderRadius: "12px",
-              background: "#161922",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.15)",
-            },
-          });
-        }
       }
     } catch (err: unknown) {
       setWatchlist((prev) => ({ ...prev, [movie.id]: isCurrentlyAdded }));

@@ -492,7 +492,7 @@ export default function ReleasePage() {
                                                                     )}
                                                                 </h3>
 
-                                                                {/* Thể loại +N và rating(nếu có) */}
+                                                                {/* Genres +N and rating (if available) */}
                                                                 <div className="text-xs text-zinc-400 truncate flex items-center gap-2">
                                                                     {movie.genres.length > 0 && (
                                                                         <span>

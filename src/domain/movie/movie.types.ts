@@ -8,6 +8,9 @@ export interface UpcomingMovie {
   genres: string[];
   description: string;
   backdrop: string;
+  poster?: string;
+  poster_path?: string;
+  vote_average?: number;
   trailerId: string;
 }
 

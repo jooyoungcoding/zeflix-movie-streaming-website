@@ -111,29 +111,6 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
 
       if (res.success) {
         setIsWatchlist(res.data.isAdded);
-        if (res.data.isAdded) {
-          toast.success(`Added "${tv.title}" to Watchlist!`, {
-            id: `fav-${tv.id}`,
-            icon: "🔖",
-            duration: 2500,
-            style: {
-              background: "#12151c",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          });
-        } else {
-          toast(`Removed "${tv.title}" from Watchlist`, {
-            id: `fav-${tv.id}`,
-            icon: "🗑️",
-            duration: 2000,
-            style: {
-              background: "#12151c",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          });
-        }
       }
     } catch (err: unknown) {
       setIsWatchlist(!nextState);
@@ -291,22 +268,22 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 {!(
                   tv.isUpcoming ??
                   (Boolean(tv.releaseDate && tv.releaseDate > new Date().toISOString().split("T")[0]) ||
-                   Boolean(
-                     tv.status &&
-                     !["returning series", "ended", "canceled", "released"].includes(
-                       tv.status.toLowerCase()
-                     )
-                   ))
+                    Boolean(
+                      tv.status &&
+                      !["returning series", "ended", "canceled", "released"].includes(
+                        tv.status.toLowerCase()
+                      )
+                    ))
                 ) && (
-                  <button
-                    type="button"
-                    onClick={handleWatchNow}
-                    className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white shrink-0" />
-                    <span>Watch Now</span>
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={handleWatchNow}
+                      className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-white shrink-0" />
+                      <span>Watch Now</span>
+                    </button>
+                  )}
 
                 {/* Watchlist Bookmark Button */}
                 <button
@@ -317,18 +294,18 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                   {isWatchlist ? (
                     <>
                       <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 scale-110 shrink-0 transition-transform" />
-                      <span className="truncate">Added to Watchlist</span>
+                      <span className="truncate">Watchlist</span>
                     </>
                   ) : (
                     <>
                       <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white group-hover/fav:text-yellow-400 group-hover/fav:scale-110 shrink-0 transition-all" />
-                      <span className="truncate">Add Watchlist</span>
+                      <span className="truncate">Watchlist</span>
                     </>
                   )}
                 </button>
               </div>
 
-              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link nằm ngang cân xứng) */}
+              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link horizontally balanced) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-start md:justify-end md:ml-auto">
                 {tv.trailerId && (
                   <button

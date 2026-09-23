@@ -105,29 +105,6 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
 
       if (res.success) {
         setIsWatchlist(res.data.isAdded);
-        if (res.data.isAdded) {
-          toast.success(`Added "${movie.title}" to Watchlist!`, {
-            id: `fav-${movie.id}`,
-            icon: "🔖",
-            duration: 2500,
-            style: {
-              background: "#12151c",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          });
-        } else {
-          toast(`Removed "${movie.title}" from Watchlist`, {
-            id: `fav-${movie.id}`,
-            icon: "🗑️",
-            duration: 2000,
-            style: {
-              background: "#12151c",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-          });
-        }
       }
     } catch (err: unknown) {
       // Revert state on failure
@@ -310,7 +287,7 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
                 </button>
               </div>
 
-              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link nằm ngang cân xứng) */}
+              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link horizontally balanced) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-start md:justify-end md:ml-auto">
                 {/* Watch Trailer Button */}
                 {movie.trailerId && (

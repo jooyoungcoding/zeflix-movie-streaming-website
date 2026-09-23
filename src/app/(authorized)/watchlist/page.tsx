@@ -78,9 +78,29 @@ export default function WatchlistPage() {
                                     ? `/movie/${content.tmdb_id}`
                                     : `/tv/${content.tmdb_id}`;
 
-                            const posterUrl = content.poster_path
-                                ? `https://image.tmdb.org/t/p/w500${content.poster_path}`
-                                : "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=80";
+                            const getMediaPosterUrl = (
+                                posterPath?: string | null,
+                                backdropPath?: string | null
+                            ) => {
+                                if (posterPath && posterPath.trim()) {
+                                    if (posterPath.startsWith("http://") || posterPath.startsWith("https://")) {
+                                        return posterPath;
+                                    }
+                                    return `https://image.tmdb.org/t/p/w500${posterPath.startsWith("/") ? "" : "/"}${posterPath}`;
+                                }
+                                if (backdropPath && backdropPath.trim()) {
+                                    if (backdropPath.startsWith("http://") || backdropPath.startsWith("https://")) {
+                                        return backdropPath;
+                                    }
+                                    return `https://image.tmdb.org/t/p/w500${backdropPath.startsWith("/") ? "" : "/"}${backdropPath}`;
+                                }
+                                return "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=500&auto=format&fit=crop&q=80";
+                            };
+
+                            const posterUrl = getMediaPosterUrl(
+                                content.poster_path,
+                                content.backdrop_path
+                            );
 
                             const primaryType = type === "movie" ? "Movie" : "Series";
 

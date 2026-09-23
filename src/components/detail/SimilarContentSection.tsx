@@ -196,7 +196,7 @@ export default function SimilarContentSection({
                       )}
                     </div>
 
-                    {/* Title & Metadata BELOW thumbnail (tách rời khỏi ảnh) */}
+                    {/* Title & Metadata BELOW thumbnail (separated from image) */}
                     <div className="mt-3 flex flex-col space-y-1">
                       <h4 className="text-sm sm:text-[15px] font-bold text-white tracking-wide truncate group-hover/card:text-emerald-400 transition-colors">
                         {item.title}

@@ -13,10 +13,17 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { FeaturedContent } from "@/domain/movie/movie.types";
+import {
+  requestGetWatchlist,
+  requestToggleWatchlist,
+} from "@/features/watchlist/api/watchlist.api";
+import { useAuthStore } from "@/store/auth.store";
+import { useAuthModalStore } from "@/store/auth-modal.store";
 
 export type { FeaturedContent };
 
 export default function FeaturedInZeflix() {
+  const userId = useAuthStore((state) => state.user_id);
   const [items, setItems] = useState<FeaturedContent[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
@@ -50,12 +57,33 @@ export default function FeaturedInZeflix() {
       }
     }
 
+    async function fetchUserWatchlist() {
+      if (!userId) {
+        setFavorites({});
+        return;
+      }
+
+      try {
+        const res = await requestGetWatchlist();
+        if (isMounted && res.success && res.data) {
+          const map: Record<string, boolean> = {};
+          res.data.forEach((item) => {
+            map[String(item.content.tmdb_id)] = true;
+          });
+          setFavorites(map);
+        }
+      } catch {
+        // User not logged in, ignore
+      }
+    }
+
     fetchFeatured();
+    fetchUserWatchlist();
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [userId]);
 
   const handleNext = () => {
     if (items.length === 0) return;
@@ -67,34 +95,55 @@ export default function FeaturedInZeflix() {
     setActiveIndex((prev) => (prev - 1 + items.length) % items.length);
   };
 
-  const toggleFavorite = (item: FeaturedContent) => {
-    const isAdded = !!favorites[item.id];
+  const toggleFavorite = async (item: FeaturedContent) => {
+    if (!userId) {
+      useAuthModalStore.getState().openModal({
+        title: "Sign in to use Watchlist",
+        description: `Please sign in or register an account to add "${item.title}" to your watchlist.`,
+      });
+      return;
+    }
+
+    const isCurrentlyAdded = !!favorites[item.id];
+    const willBeAdded = !isCurrentlyAdded;
+    const tmdbId = parseInt(String(item.id), 10);
+    if (isNaN(tmdbId)) return;
+
+    // Optimistic UI update
     setFavorites((prev) => ({
       ...prev,
-      [item.id]: !isAdded,
+      [item.id]: willBeAdded,
     }));
 
-    if (!isAdded) {
-      toast.success(`Added "${item.title}" to Watchlist!`, {
-        id: `watchlist-${item.id}`,
-        icon: "🔖",
-        duration: 2500,
-        style: {
-          background: "#12151c",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.1)",
-        },
+    try {
+      const mediaType = item.type === "TV Series" ? "tv" : "movie";
+      const res = await requestToggleWatchlist({
+        tmdb_id: tmdbId,
+        type: mediaType,
+        title: item.title,
+        poster_path: item.poster || null,
+        backdrop_path: item.backdrop || null,
+        vote_average: parseFloat(item.rating) || 0,
+        release_date: item.year || null,
+        overview: item.description || null,
+        action: willBeAdded ? "add" : "remove",
       });
-    } else {
-      toast(`Removed "${item.title}" from Watchlist`, {
-        id: `watchlist-${item.id}`,
-        icon: "🗑️",
-        duration: 2000,
-        style: {
-          background: "#12151c",
-          color: "#fff",
-          border: "1px solid rgba(255,255,255,0.1)",
-        },
+
+      if (res.success) {
+        setFavorites((prev) => ({
+          ...prev,
+          [item.id]: res.data.isAdded,
+        }));
+      }
+    } catch (err: unknown) {
+      // Rollback on failure
+      setFavorites((prev) => ({
+        ...prev,
+        [item.id]: isCurrentlyAdded,
+      }));
+      const msg = err instanceof Error ? err.message : "Failed to update watchlist";
+      toast.error(msg, {
+        id: `watchlist-err-${item.id}`,
       });
     }
   };
@@ -291,12 +340,12 @@ export default function FeaturedInZeflix() {
                 {favorites[currentItem.id] ? (
                   <>
                     <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 text-yellow-400 fill-yellow-400 stroke-yellow-400 transition-transform duration-300 scale-110 shrink-0" />
-                    <span className="truncate">Added to Watchlist</span>
+                    <span className="truncate">Watchlist</span>
                   </>
                 ) : (
                   <>
                     <Bookmark className="w-4 sm:w-5 h-4 sm:h-5 stroke-[2.2] text-white transition-all duration-200 group-hover/fav:text-yellow-400 group-hover/fav:scale-110 shrink-0" />
-                    <span className="truncate">Add Watchlist</span>
+                    <span className="truncate">Watchlist</span>
                   </>
                 )}
               </button>
@@ -308,10 +357,10 @@ export default function FeaturedInZeflix() {
             {/* Carousel Viewport with desktop dynamic sliding mask */}
             <div
               className={`relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300 ${activeIndex > 0 && activeIndex < items.length - 1
-                  ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_86%,transparent_100%)]"
-                  : activeIndex > 0
-                    ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_100%)]"
-                    : "lg:[mask-image:linear-gradient(to_right,black_0%,black_86%,transparent_100%)]"
+                ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_86%,transparent_100%)]"
+                : activeIndex > 0
+                  ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_100%)]"
+                  : "lg:[mask-image:linear-gradient(to_right,black_0%,black_86%,transparent_100%)]"
                 }`}
             >
               {/* Sliding Track */}
@@ -328,8 +377,8 @@ export default function FeaturedInZeflix() {
                       key={item.id}
                       onClick={() => setActiveIndex(index)}
                       className={`relative w-[var(--card-w)] aspect-[2/3] rounded-2xl overflow-hidden shrink-0 cursor-pointer transition-all duration-500 select-none ${isActive
-                          ? "border-2 border-emerald-400 scale-100 z-20 brightness-100 shadow-xl shadow-emerald-950/50"
-                          : "border border-white/10 opacity-50 hover:opacity-85 scale-95 z-10 brightness-75 hover:scale-100"
+                        ? "border-2 border-emerald-400 scale-100 z-20 brightness-100 shadow-xl shadow-emerald-950/50"
+                        : "border border-white/10 opacity-50 hover:opacity-85 scale-95 z-10 brightness-75 hover:scale-100"
                         }`}
                     >
                       {item.poster ? (
