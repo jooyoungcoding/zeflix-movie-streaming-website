@@ -230,6 +230,11 @@ export function transformToUpcomingMovie(
     genres,
     description,
     backdrop,
+    poster: movie.poster_path
+      ? `https://image.tmdb.org/t/p/w500${movie.poster_path}`
+      : "",
+    poster_path: movie.poster_path ?? "",
+    vote_average: movie.vote_average ?? 0,
     trailerId,
   };
 }
@@ -264,6 +269,11 @@ export function transformTVToUpcomingSlide(
     genres,
     description: tv.overview ?? "",
     backdrop,
+    poster: tv.poster_path
+      ? `https://image.tmdb.org/t/p/w500${tv.poster_path}`
+      : "",
+    poster_path: tv.poster_path ?? "",
+    vote_average: tv.vote_average ?? 0,
     trailerId,
   };
 }

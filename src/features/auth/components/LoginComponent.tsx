@@ -7,8 +7,9 @@ import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 
-import { requestLogin } from "../api/auth.api";
+import { requestLogin, getUserProfile } from "../api/auth.api";
 import { useAuthStore } from "@/store/auth.store";
+import { supabase } from "@/libs/supabase";
 import GoogleLoginButton from "./GoogleLoginButton";
 
 interface LoginComponentProps {
@@ -25,6 +26,56 @@ export default function LoginComponent({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // If user is already authenticated or redirected here with verification/auth code, redirect directly to "/"
+  React.useEffect(() => {
+    let isMounted = true;
+
+    const checkExistingSession = async () => {
+      // 1. If code is present in URL
+      if (typeof window !== "undefined" && window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
+        if (code) {
+          try {
+            await supabase.auth.exchangeCodeForSession(code);
+          } catch {
+            // Silently ignore if already exchanged
+          }
+        }
+      }
+
+      // 2. If already authenticated in store, navigate to home immediately
+      if (useAuthStore.getState().user_id) {
+        if (isMounted) router.replace("/");
+        return;
+      }
+
+      // 3. Check client session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (session?.user && isMounted) {
+        const profile = await getUserProfile(session.user.id).catch(() => null);
+        useAuthStore.getState().setAuth({
+          user_id: session.user.id,
+          profile_id: profile?.profile_id || session.user.id,
+          avatar_url: profile?.avatar_url || session.user.user_metadata?.avatar_url || null,
+          username: profile?.username || session.user.user_metadata?.username || null,
+          display_name: profile?.display_name || session.user.user_metadata?.full_name || null,
+          email: profile?.email || session.user.email || null,
+        });
+        router.replace("/");
+      }
+    };
+
+    checkExistingSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   // Check URL parameters for OAuth errors
   React.useEffect(() => {
