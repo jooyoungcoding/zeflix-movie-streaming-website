@@ -2,18 +2,17 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import {
   AlertCircle,
-  Loader2,
-  Play,
+  Film,
+  FastForward,
+  Maximize,
+  Minimize,
   RefreshCw,
   SkipForward,
-  FastForward,
   X,
-  Minimize,
 } from "lucide-react";
-import { VideoSource, VideoServerOption } from "@/infrastructure/video/video.types";
+import { VideoSource } from "@/infrastructure/video/video.types";
 import { EpisodeItem, SeasonItem } from "@/domain/movie/movie.types";
 
 interface VendorFullscreenElement extends HTMLDivElement {
@@ -30,8 +29,16 @@ interface VendorFullscreenDocument extends Document {
 }
 
 interface VideoPlayerProps {
-  source: VideoSource | null;
+  source?: VideoSource | null;
+  tmdbId?: string;
+  movieId?: string;
+  imdbId?: string;
   title: string;
+  releaseYear?: number;
+  type?: "movie" | "tv";
+  season?: number;
+  episode?: number;
+  episodeId?: string;
   poster?: string;
   nextEpisodeUrl?: string;
   tvId?: string;
@@ -41,9 +48,25 @@ interface VideoPlayerProps {
   episodes?: EpisodeItem[];
 }
 
+interface ServerOption {
+  id: string;
+  name: string;
+  tag: string;
+}
+
+const SERVERS: ServerOption[] = [
+  { id: "vidsrc", name: "Server 1", tag: "VidSrc (Mặc định)" },
+  { id: "vidlink", name: "Server 2", tag: "VidLink (Fast)" },
+  { id: "2embed", name: "Server 3", tag: "2Embed" },
+];
+
 export default function VideoPlayer({
-  source,
+  tmdbId,
+  movieId,
   title,
+  type,
+  season,
+  episode,
   poster,
   nextEpisodeUrl,
   tvId,
@@ -52,95 +75,175 @@ export default function VideoPlayer({
   seasons,
   episodes,
 }: VideoPlayerProps) {
-  const router = useRouter();
-
-  // Sync server list and initialize selected server
-  const servers: VideoServerOption[] = useMemo(
-    () =>
-      source?.servers ||
-      (source?.url ? [{ id: "default", name: "Default Server", url: source.url }] : []),
-    [source]
-  );
-
-  const [selectedServerUrl, setSelectedServerUrl] = useState<string>(
-    () => servers[0]?.url || source?.url || ""
-  );
-  const [activeSeason, setActiveSeason] = useState<number | undefined>(currentSeason);
-  const [activeEpisode, setActiveEpisode] = useState<number | undefined>(currentEpisode);
+  const [selectedServer, setSelectedServer] = useState<string>("vidsrc");
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
-  const [reloadKey, setReloadKey] = useState<number>(0);
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [userSelectedSeason, setUserSelectedSeason] = useState<number | null>(null);
+  const [userSelectedEpisode, setUserSelectedEpisode] = useState<number | null>(null);
+
+  const activeSeason = userSelectedSeason ?? (currentSeason ?? season ?? 1);
+  const activeEpisode = userSelectedEpisode ?? (currentEpisode ?? episode ?? 1);
+
   const [autoNext, setAutoNext] = useState<boolean>(true);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [showControlsHud, setShowControlsHud] = useState<boolean>(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const hudTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const currentSeasonRef = useRef<number | undefined>(currentSeason);
-  const currentEpisodeRef = useRef<number | undefined>(currentEpisode);
-  const selectedServerUrlRef = useRef<string>(servers[0]?.url || source?.url || "");
-  const isFirstRender = useRef<boolean>(true);
+  const loadSafetyTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Sync season/episode state during render when props change without cascading renders
-  const [prevEpisodes, setPrevEpisodes] = useState({ currentSeason, currentEpisode });
-  if (
-    prevEpisodes.currentSeason !== currentSeason ||
-    prevEpisodes.currentEpisode !== currentEpisode
-  ) {
-    setPrevEpisodes({ currentSeason, currentEpisode });
-    setActiveSeason(currentSeason);
-    setActiveEpisode(currentEpisode);
-  }
 
-  // Synchronize ref with current active season/episode for event handlers
-  useEffect(() => {
-    currentSeasonRef.current = activeSeason;
-    currentEpisodeRef.current = activeEpisode;
-  }, [activeSeason, activeEpisode]);
 
-  useEffect(() => {
-    selectedServerUrlRef.current = selectedServerUrl;
-  }, [selectedServerUrl]);
+  // Determine effective IDs (supports props or fallback to URL pathname)
+  const getResolvedIds = useCallback(() => {
+    const isClient = typeof window !== "undefined";
+    const pathname = isClient ? window.location.pathname : "";
 
-  // Initial safety timeout on mount
-  useEffect(() => {
-    loadingTimeoutRef.current = setTimeout(() => {
-      setIsLoading(false);
-    }, 8000);
-    return () => {
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    const clean = (val?: string) => {
+      if (!val || val === "undefined" || val === "null") return undefined;
+      const s = String(val).trim();
+      return s.length > 0 && s !== "undefined" && s !== "null" ? s : undefined;
     };
+
+    const parsedMoviePathId = (!tvId && pathname.includes("/watch/movie/"))
+      ? pathname.match(/\/watch\/movie\/([^/?#]+)/)?.[1]
+      : undefined;
+
+    const parsedTvPathId = pathname.includes("/watch/tv/")
+      ? pathname.match(/\/watch\/tv\/([^/?#]+)/)?.[1]
+      : undefined;
+
+    const resolvedMovieId = clean(tmdbId) || clean(movieId) || clean(parsedMoviePathId);
+    const resolvedTvId = clean(tvId) || (type === "tv" ? clean(tmdbId) : undefined) || clean(parsedTvPathId);
+
+    return { resolvedMovieId, resolvedTvId };
+  }, [tmdbId, movieId, tvId, type]);
+
+  // Dynamic URL builder supporting Multi-Server (VidSrc default, VidLink, 2Embed)
+  const iframeSrc = useMemo(() => {
+    const { resolvedMovieId, resolvedTvId } = getResolvedIds();
+    const isTv = type === "tv" || !!resolvedTvId;
+    const targetId = isTv ? (resolvedTvId || tmdbId || tvId) : (resolvedMovieId || tmdbId || movieId);
+    const cleanTargetId = String(targetId || "").trim();
+
+    if (!cleanTargetId || cleanTargetId === "undefined" || cleanTargetId === "null") {
+      return "";
+    }
+
+    const s = activeSeason ?? currentSeason ?? season ?? 1;
+    const ep = activeEpisode ?? currentEpisode ?? episode ?? 1;
+
+    // Server 1 (Default): VidSrc - Extremely reliable, no X-Frame-Options block
+    if (selectedServer === "vidsrc") {
+      if (isTv) {
+        return `https://vidsrc.me/embed/tv?tmdb=${cleanTargetId}&season=${s}&episode=${ep}`;
+      }
+      return `https://vidsrc.me/embed/movie?tmdb=${cleanTargetId}`;
+    }
+
+    // Server 3: 2Embed
+    if (selectedServer === "2embed") {
+      if (isTv) {
+        return `https://www.2embed.cc/embedtv/${cleanTargetId}?s=${s}&e=${ep}`;
+      }
+      return `https://www.2embed.cc/embed/${cleanTargetId}`;
+    }
+
+    // Server 2: VidLink with Emerald Theme
+    const params = new URLSearchParams({
+      primaryColor: "10b981",
+      secondaryColor: "10b981",
+      iconColor: "10b981",
+      title: "true",
+      poster: "true",
+      autoplay: "false",
+    });
+
+    if (isTv) {
+      return `https://vidlink.pro/tv/${cleanTargetId}/${s}/${ep}?${params.toString()}`;
+    }
+
+    return `https://vidlink.pro/movie/${cleanTargetId}?${params.toString()}`;
+  }, [
+    getResolvedIds,
+    type,
+    tmdbId,
+    tvId,
+    movieId,
+    activeSeason,
+    currentSeason,
+    season,
+    activeEpisode,
+    currentEpisode,
+    episode,
+    selectedServer,
+  ]);
+
+  // Handle iframe load event: smoothly fade out cinematic overlay
+  const handleIframeLoad = useCallback(() => {
+    if (loadSafetyTimerRef.current) {
+      clearTimeout(loadSafetyTimerRef.current);
+      loadSafetyTimerRef.current = null;
+    }
+    // Small buffer delay to allow the video player skin to initialize cleanly
+    setTimeout(() => {
+      setIsLoading(false);
+      setHasError(false);
+    }, 600);
   }, []);
 
-  // Sync on source/reloadKey change (skip first mount to avoid cascading setState)
+  // When iframe source updates, trigger loading state and start safety timeout
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+    if (!iframeSrc) {
+      const timer = setTimeout(() => {
+        setIsLoading(false);
+        setHasError(true);
+        setErrorMessage("Không tìm thấy thông tin phim hoặc TMDB ID không hợp lệ.");
+      }, 0);
+      return () => clearTimeout(timer);
     }
-    const targetUrl = servers[0]?.url || source?.url || "";
-    setSelectedServerUrl(targetUrl);
-    setIsLoading(true);
-    setHasError(false);
-    setCountdown(null);
 
-    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-    loadingTimeoutRef.current = setTimeout(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(true);
+      setHasError(false);
+      setErrorMessage("");
+    }, 0);
+
+    // Safety fallback: if iframe load event doesn't trigger, reveal player after 7s
+    if (loadSafetyTimerRef.current) clearTimeout(loadSafetyTimerRef.current);
+    loadSafetyTimerRef.current = setTimeout(() => {
       setIsLoading(false);
-    }, 8000);
+    }, 7000);
 
     return () => {
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      clearTimeout(timer);
+      if (loadSafetyTimerRef.current) clearTimeout(loadSafetyTimerRef.current);
     };
-  }, [source?.url, reloadKey, servers]);
+  }, [iframeSrc]);
 
-  // Helper to calculate the exact next (season, episode) target across season boundaries
+  // Explicitly apply multi-vendor fullscreen attributes to support nested embed player engines
+  useEffect(() => {
+    if (iframeRef.current) {
+      try {
+        iframeRef.current.setAttribute("allowfullscreen", "true");
+        iframeRef.current.setAttribute("webkitallowfullscreen", "true");
+        iframeRef.current.setAttribute("mozallowfullscreen", "true");
+      } catch {
+        // Ignore
+      }
+    }
+  }, [iframeSrc]);
+
+  // Helper to calculate next episode target across seasons
   const getNextEpisodeTarget = useCallback(
     (seasonNum?: number, epNum?: number): { season: number; episode: number } | null => {
-      if (!tvId) return null;
+      const { resolvedTvId } = getResolvedIds();
+      if (!resolvedTvId) return null;
+
       const s = seasonNum !== undefined ? seasonNum : (activeSeason || 1);
       const ep = epNum !== undefined ? epNum : (activeEpisode || 1);
 
@@ -148,24 +251,23 @@ export default function VideoPlayer({
         const currentSeasonObj = seasons.find((item) => Number(item.seasonNumber) === Number(s));
         const seasonMaxEpisodes = currentSeasonObj?.episodeCount || episodes?.length || 0;
 
-        // Case 1: More episodes exist in the current season
+        // Case 1: More episodes exist in current season
         if (ep < seasonMaxEpisodes) {
           return { season: s, episode: ep + 1 };
         }
 
-        // Case 2: Current season is finished, check if next season exists with episodes
+        // Case 2: Current season completed, transition to next season
         const nextSeasonObj = seasons.find((item) => Number(item.seasonNumber) === Number(s) + 1);
         if (nextSeasonObj && nextSeasonObj.episodeCount > 0) {
           return { season: s + 1, episode: 1 };
         }
 
-        // Case 3: Series finale (no more episodes/seasons)
         return null;
       }
 
-      // Fallback: parse nextEpisodeUrl
+      // Fallback: parse nextEpisodeUrl if available
       if (nextEpisodeUrl) {
-        const match = nextEpisodeUrl.match(/\/watch\/tv\/[^\/]+\/(\d+)\/(\d+)/);
+        const match = nextEpisodeUrl.match(/\/watch\/tv\/[^/]+\/(\d+)\/(\d+)/);
         if (match) {
           return { season: parseInt(match[1], 10), episode: parseInt(match[2], 10) };
         }
@@ -173,107 +275,60 @@ export default function VideoPlayer({
 
       return null;
     },
-    [tvId, seasons, episodes, nextEpisodeUrl, activeSeason, activeEpisode]
+    [getResolvedIds, seasons, episodes, nextEpisodeUrl, activeSeason, activeEpisode]
   );
 
-  // Helper to dynamically check if a next episode exists (same season or next season)
-  const checkHasNextEpisode = useCallback(
-    (seasonNum?: number, epNum?: number): boolean => {
-      return getNextEpisodeTarget(seasonNum, epNum) !== null;
-    },
-    [getNextEpisodeTarget]
-  );
+  const nextTarget = useMemo(() => getNextEpisodeTarget(), [getNextEpisodeTarget]);
+  const hasNextEpisode = nextTarget !== null;
 
-  // Calculate continuous display episode number across seasons if needed
-  const getDisplayEpisodeNumber = useCallback(
-    (targetSeason: number, targetEp: number): number => {
-      if (!seasons || seasons.length === 0) return targetEp;
-      let offset = 0;
-      for (const s of seasons) {
-        if (Number(s.seasonNumber) < Number(targetSeason)) {
-          offset += s.episodeCount || 0;
-        }
-      }
-      return offset + targetEp;
-    },
-    [seasons]
-  );
-
-  // Helper to construct TV series server URL dynamically for any season/episode
-  const buildServerUrl = useCallback(
-    (currentUrl: string, season: number, episode: number): string => {
-      if (!tvId) return currentUrl;
-      const s = Math.max(1, Math.floor(season));
-      const ep = Math.max(1, Math.floor(episode));
-
-      // Always disable VidLink's native gray next button so only our sleek bottom-right Zeflix button is used
-      if (currentUrl.includes("vidlink.pro")) {
-        return `https://vidlink.pro/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true&nextbutton=false`;
-      }
-      if (currentUrl.includes("2embed.cc")) {
-        return `https://www.2embed.cc/embedtv/${tvId}?s=${s}&e=${ep}`;
-      }
-      if (currentUrl.includes("autoembed.cc")) {
-        return `https://player.autoembed.cc/embed/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`;
-      }
-      if (currentUrl.includes("vidsrc.to")) {
-        return `https://vidsrc.to/embed/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`;
-      }
-
-      // Default fallback
-      return `https://vidlink.pro/tv/${tvId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true&nextbutton=false`;
-    },
-    [tvId]
-  );
-
-  // In-place episode switcher: switches video stream, updates URL and synced components WITHOUT unmounting or exiting fullscreen
+  // In-place episode switcher: seamlessly updates iframe without page reload
   const switchToEpisode = useCallback(
-    (season: number, episode: number) => {
-      if (!tvId) return;
+    (newSeason: number, newEpisode: number) => {
+      const { resolvedTvId } = getResolvedIds();
+      if (!resolvedTvId) return;
 
-      setActiveSeason(season);
-      setActiveEpisode(episode);
-      currentSeasonRef.current = season;
-      currentEpisodeRef.current = episode;
+      setUserSelectedSeason(newSeason);
+      setUserSelectedEpisode(newEpisode);
       setCountdown(null);
       setIsLoading(true);
-      setHasError(false);
 
-      const newUrl = buildServerUrl(selectedServerUrlRef.current, season, episode);
-      setSelectedServerUrl(newUrl);
-
-      // Reset safety-net timeout so loading never gets permanently stuck after episode switch
-      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-      loadingTimeoutRef.current = setTimeout(() => {
-        setIsLoading(false);
-      }, 8000);
-
-      // 1. Dispatch custom event for real-time UI synchronization in EpisodesTab
+      // 1. Dispatch custom event for real-time synchronization in EpisodesTab
       window.dispatchEvent(
         new CustomEvent("zeflix:episode-changed", {
-          detail: { season, episode },
+          detail: { season: newSeason, episode: newEpisode },
         })
       );
 
-      // 2. Update address bar in real-time without unmounting fullscreen player
-      window.history.replaceState(
-        null,
-        "",
-        `/watch/tv/${tvId}/${season}/${episode}`
-      );
+      // 2. Update browser address bar without triggering Next.js route reload
+      window.history.replaceState(null, "", `/watch/tv/${resolvedTvId}/${newSeason}/${newEpisode}`);
     },
-    [tvId, buildServerUrl]
+    [getResolvedIds]
   );
 
-  // Fullscreen management on the outer container element to prevent browser shrinking on stream navigation
+  // Listen for external episode changes from EpisodesTab clicks (with clean unmount cleanup)
+  useEffect(() => {
+    const handleChangeEpisode = (e: Event) => {
+      const customEvent = e as CustomEvent<{ season: number; episode: number }>;
+      if (!customEvent.detail) return;
+      const { season: s, episode: ep } = customEvent.detail;
+      switchToEpisode(Number(s), Number(ep));
+    };
+
+    window.addEventListener("zeflix:change-episode", handleChangeEpisode);
+    return () => {
+      window.removeEventListener("zeflix:change-episode", handleChangeEpisode);
+    };
+  }, [switchToEpisode]);
+
+  // Fullscreen management on outer container
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     const el = containerRef.current as VendorFullscreenElement;
     const doc = document as VendorFullscreenDocument;
 
-    if (!doc.fullscreenElement) {
+    if (!doc.fullscreenElement && !doc.webkitFullscreenElement && !doc.mozFullScreenElement && !doc.msFullscreenElement) {
       if (el.requestFullscreen) {
-        el.requestFullscreen().catch(() => {});
+        el.requestFullscreen().catch(() => { });
       } else if (el.webkitRequestFullscreen) {
         el.webkitRequestFullscreen();
       } else if (el.msRequestFullscreen) {
@@ -281,7 +336,7 @@ export default function VideoPlayer({
       }
     } else {
       if (doc.exitFullscreen) {
-        doc.exitFullscreen().catch(() => {});
+        doc.exitFullscreen().catch(() => { });
       } else if (doc.webkitExitFullscreen) {
         doc.webkitExitFullscreen();
       } else if (doc.msExitFullscreen) {
@@ -302,35 +357,19 @@ export default function VideoPlayer({
 
       const isFull = !!fullElem;
       setIsFullscreen(isFull);
-
       if (isFull) {
         setShowControlsHud(true);
-
-        // Auto-upgrade: If fullscreen was initiated directly on the inner iframe element (e.g. user clicked icon in video player),
-        // immediately elevate fullscreen to the outer container so Next Episode stream reloads will NEVER exit fullscreen!
-        if (
-          containerRef.current &&
-          fullElem !== containerRef.current &&
-          containerRef.current.contains(fullElem)
-        ) {
-          try {
-            const el = containerRef.current as VendorFullscreenElement;
-            if (el.requestFullscreen) {
-              el.requestFullscreen().catch(() => {});
-            } else if (el.webkitRequestFullscreen) {
-              el.webkitRequestFullscreen();
-            }
-          } catch {
-            // Ignore if browser restricts elevation
-          }
-        }
       }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (activeTag === "input" || activeTag === "textarea") return;
-
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target as HTMLElement)?.isContentEditable
+      ) {
+        return;
+      }
       if (e.key === "f" || e.key === "F") {
         e.preventDefault();
         toggleFullscreen();
@@ -352,175 +391,16 @@ export default function VideoPlayer({
     };
   }, [toggleFullscreen]);
 
-  // Handle user activity (mouse move / touch / hover) to auto-show/hide overlay buttons
+  // Auto-hide HUD controls after 3 seconds of inactivity
   const handleUserActivity = useCallback(() => {
     setShowControlsHud(true);
     if (hudTimerRef.current) clearTimeout(hudTimerRef.current);
     hudTimerRef.current = setTimeout(() => {
       setShowControlsHud(false);
-    }, 3500);
+    }, 3000);
   }, []);
 
-  // Listen for external episode change requests (from EpisodesTab clicks)
-  useEffect(() => {
-    const handleChangeEpisode = (e: Event) => {
-      const customEvent = e as CustomEvent<{ season: number; episode: number }>;
-      if (!customEvent.detail || !tvId) return;
-      const { season, episode } = customEvent.detail;
-      switchToEpisode(Number(season), Number(episode));
-    };
-
-    window.addEventListener("zeflix:change-episode", handleChangeEpisode);
-    return () => {
-      window.removeEventListener("zeflix:change-episode", handleChangeEpisode);
-    };
-  }, [tvId, switchToEpisode]);
-
-  // Handle postMessage from video provider to dismiss loading overlay & handle auto-next / episode sync
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      try {
-        let data = event.data;
-        if (typeof data === "string") {
-          try {
-            data = JSON.parse(data);
-          } catch {
-            // Not a JSON string, ignore
-          }
-        }
-
-        if (!data || typeof data !== "object") return;
-
-        // Ready / Play event
-        if (
-          data?.event === "play" ||
-          data?.event === "ready" ||
-          data?.event === "timeupdate" ||
-          data?.type === "PLAYER_EVENT" ||
-          data?.type === "MEDIA_DATA" ||
-          data?.type === "ready" ||
-          data?.action === "ready"
-        ) {
-          setIsLoading(false);
-        }
-
-        // Deep helper to extract season and episode numbers from any nested structure
-        const findNum = (obj: unknown, keys: string[]): number | undefined => {
-          if (!obj || typeof obj !== "object") return undefined;
-          const rec = obj as Record<string, unknown>;
-          for (const k of keys) {
-            if (rec[k] !== undefined && rec[k] !== null && rec[k] !== "") {
-              const val = parseInt(String(rec[k]), 10);
-              if (!isNaN(val) && val > 0) return val;
-            }
-          }
-          return undefined;
-        };
-
-        const seasonKeys = [
-          "season",
-          "season_number",
-          "seasonNumber",
-          "current_season",
-          "currentSeason",
-          "s",
-        ];
-        const episodeKeys = [
-          "episode",
-          "episode_number",
-          "episodeNumber",
-          "current_episode",
-          "currentEpisode",
-          "ep",
-        ];
-
-        const eventSeason =
-          findNum(data, seasonKeys) ??
-          findNum(data.data, seasonKeys) ??
-          findNum(data.media, seasonKeys) ??
-          findNum(data.detail, seasonKeys) ??
-          findNum(data.item, seasonKeys);
-
-        const eventEpisode =
-          findNum(data, episodeKeys) ??
-          findNum(data.data, episodeKeys) ??
-          findNum(data.media, episodeKeys) ??
-          findNum(data.detail, episodeKeys) ??
-          findNum(data.item, episodeKeys);
-
-        // Check if an explicit next button click event was emitted by the player
-        const isNextAction =
-          data?.event === "next" ||
-          data?.event === "next_episode" ||
-          data?.event === "nextEpisode" ||
-          data?.type === "NEXT_EPISODE" ||
-          data?.type === "next_episode" ||
-          data?.type === "next" ||
-          data?.action === "next" ||
-          data?.data?.event === "next" ||
-          data?.data?.event === "next_episode" ||
-          data?.data?.action === "next" ||
-          data?.data?.type === "NEXT_EPISODE" ||
-          data?.data?.type === "next_episode";
-
-        let targetSeason = eventSeason;
-        let targetEpisode = eventEpisode;
-
-        if (
-          (targetSeason === undefined || targetEpisode === undefined) &&
-          isNextAction
-        ) {
-          const nextTarget = getNextEpisodeTarget();
-          if (nextTarget) {
-            targetSeason = nextTarget.season;
-            targetEpisode = nextTarget.episode;
-          }
-        }
-
-        if (
-          tvId &&
-          targetSeason !== undefined &&
-          targetEpisode !== undefined &&
-          (targetSeason !== currentSeasonRef.current ||
-            targetEpisode !== currentEpisodeRef.current)
-        ) {
-          currentSeasonRef.current = targetSeason;
-          currentEpisodeRef.current = targetEpisode;
-          setActiveSeason(targetSeason);
-          setActiveEpisode(targetEpisode);
-
-          // 1. Dispatch custom event for real-time UI synchronization in EpisodesTab
-          window.dispatchEvent(
-            new CustomEvent("zeflix:episode-changed", {
-              detail: { season: targetSeason, episode: targetEpisode },
-            })
-          );
-
-          // 2. Update address bar in real-time without unmounting fullscreen iframe
-          window.history.replaceState(
-            null,
-            "",
-            `/watch/tv/${tvId}/${targetSeason}/${targetEpisode}`
-          );
-        }
-
-        // Ended event -> trigger Auto Next ONLY if enabled and a next episode exists
-        const eventType = data?.event || data?.data?.event;
-        if (eventType === "ended" && autoNext && checkHasNextEpisode()) {
-          setCountdown(5);
-        }
-      } catch {
-        // Ignore parsing errors for other message events
-      }
-    };
-
-    window.addEventListener("message", handleMessage);
-    return () => {
-      window.removeEventListener("message", handleMessage);
-    };
-  }, [autoNext, tvId, checkHasNextEpisode, getNextEpisodeTarget]);
-
-  // Countdown timer effect
+  // Countdown timer for Auto-Next
   useEffect(() => {
     if (countdown === null) return;
 
@@ -528,11 +408,8 @@ export default function VideoPlayer({
       setCountdown((prev) => {
         if (prev === null) return null;
         if (prev <= 1) {
-          const nextTarget = getNextEpisodeTarget();
           if (nextTarget) {
             switchToEpisode(nextTarget.season, nextTarget.episode);
-          } else if (nextEpisodeUrl) {
-            router.push(nextEpisodeUrl);
           }
           return null;
         }
@@ -543,94 +420,47 @@ export default function VideoPlayer({
     return () => {
       if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
     };
-  }, [countdown, nextEpisodeUrl, router, switchToEpisode, getNextEpisodeTarget]);
+  }, [countdown, nextTarget, switchToEpisode]);
 
-  // Handle iframe load — clear the loading state and cancel the safety-net timeout
-  const handleIframeLoad = () => {
-    if (loadingTimeoutRef.current) {
-      clearTimeout(loadingTimeoutRef.current);
-      loadingTimeoutRef.current = null;
-    }
-    setTimeout(() => {
-      setIsLoading(false);
-    }, 2500);
-  };
+  // Listen for VidLink player completion messages via postMessage
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (!event.origin.includes("vidlink.pro")) return;
 
-  // Handle manual server switch
-  const handleServerChange = (url: string) => {
-    if (url === selectedServerUrl) return;
-    setIsLoading(true);
-    setHasError(false);
-    setSelectedServerUrl(url);
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (
+          data?.type === "MEDIA_ENDED" ||
+          data?.event === "ended" ||
+          data?.action === "ended"
+        ) {
+          if (nextTarget && autoNext) {
+            setCountdown(10);
+          }
+        }
+      } catch {
+        // Ignore non-json postMessages
+      }
+    };
 
-    // Reset safety-net timeout on every manual server switch
-    if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
-    loadingTimeoutRef.current = setTimeout(() => {
-      setIsLoading(false);
-    }, 8000);
-  };
+    window.addEventListener("message", handleMessage);
+    return () => {
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [nextTarget, autoNext]);
 
-  // Handle retry
-  const handleRetry = () => {
-    setHasError(false);
-    setIsLoading(true);
-    setReloadKey((prev) => prev + 1);
-  };
-
-  // Case 1: No source available
-  if (!source || !selectedServerUrl) {
-    return (
-      <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-[#0e1117] border border-white/10 shadow-2xl flex flex-col items-center justify-center p-6 text-center">
-        {poster && (
-          <Image
-            src={poster}
-            alt={title}
-            fill
-            className="object-cover opacity-20 blur-sm pointer-events-none"
-            sizes="(max-width: 1200px) 100vw, 1200px"
-          />
-        )}
-        <div className="relative z-10 flex flex-col items-center gap-3 max-w-md">
-          <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-zinc-400">
-            <Play className="w-6 h-6 opacity-40" />
-          </div>
-          <h3 className="text-base sm:text-lg font-bold text-white">
-            Video is currently unavailable.
-          </h3>
-          <p className="text-xs sm:text-sm text-zinc-400">
-            We are working to bring this stream online soon. Please check back later.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Next episode details for countdown action
-  const nextTarget = getNextEpisodeTarget();
-  const hasNext = nextTarget !== null;
-  const nextTargetEpisode = nextTarget?.episode || 1;
-  const nextTargetSeason = nextTarget?.season || 1;
-  const nextDisplayEpisodeNumber = nextTarget
-    ? getDisplayEpisodeNumber(nextTarget.season, nextTarget.episode)
-    : 1;
-  const currentDisplayEpisodeNumber =
-    activeSeason && activeEpisode
-      ? getDisplayEpisodeNumber(activeSeason, activeEpisode)
-      : activeEpisode || 1;
-
-  // Case 2: Source exists (Multi-server player)
   return (
     <div className="w-full space-y-4">
-      {/* Playback Container (Attached to containerRef for seamless container-level fullscreen) */}
+      {/* Outer Video Container with Fullscreen elevation */}
       <div
         ref={containerRef}
         onMouseMove={handleUserActivity}
         onMouseEnter={handleUserActivity}
-        className={`group/player relative w-full bg-black shadow-2xl overflow-hidden ${
-          isFullscreen
+        onMouseLeave={() => setShowControlsHud(false)}
+        className={`group/player relative w-full bg-black shadow-2xl overflow-hidden select-none ${isFullscreen
             ? "fixed inset-0 z-[99999] w-screen h-screen flex items-center justify-center rounded-none"
             : "aspect-video rounded-2xl"
-        }`}
+          }`}
       >
         {/* Fullscreen Floating Controls & Info HUD */}
         {isFullscreen && showControlsHud && (
@@ -641,20 +471,20 @@ export default function VideoPlayer({
               </span>
               {activeSeason && (
                 <span className="text-xs bg-emerald-500/20 text-emerald-400 font-semibold px-2.5 py-0.5 rounded-lg border border-emerald-500/30">
-                  S{activeSeason} : E{currentDisplayEpisodeNumber}
+                  S{activeSeason} : E{activeEpisode}
                 </span>
               )}
             </div>
 
             <div className="flex items-center gap-2.5">
-              {hasNext && nextTarget && (
+              {nextTarget && (
                 <button
                   type="button"
-                  onClick={() => switchToEpisode(nextTargetSeason, nextTargetEpisode)}
+                  onClick={() => switchToEpisode(nextTarget.season, nextTarget.episode)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-lg active:scale-95"
-                  title={`Next S${nextTargetSeason} E${nextDisplayEpisodeNumber}`}
+                  title={`Play Next S${nextTarget.season} E${nextTarget.episode}`}
                 >
-                  <span>Next S{nextTargetSeason} E{nextDisplayEpisodeNumber}</span>
+                  <span>Next S{nextTarget.season} E{nextTarget.episode}</span>
                   <SkipForward className="w-3.5 h-3.5 fill-current" />
                 </button>
               )}
@@ -672,56 +502,72 @@ export default function VideoPlayer({
           </div>
         )}
 
-        {/* Sleek Next Episode Button: Visible on mouse hover/activity, automatically hides when idle */}
-        {!isFullscreen && hasNext && nextTarget && (
+        {/* Sleek Floating Next Episode Button (Hides when idle in normal mode) */}
+        {!isFullscreen && nextTarget && !isLoading && !hasError && (
           <div
-            className={`absolute bottom-16 right-4 sm:bottom-20 sm:right-6 z-30 transition-all duration-300 ${
-              showControlsHud
+            className={`absolute bottom-16 right-4 sm:bottom-20 sm:right-6 z-30 transition-all duration-300 ${showControlsHud
                 ? "opacity-100 pointer-events-auto translate-y-0"
                 : "opacity-0 pointer-events-none translate-y-2"
-            }`}
+              }`}
           >
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                switchToEpisode(nextTargetSeason, nextTargetEpisode);
+                switchToEpisode(nextTarget.season, nextTarget.episode);
               }}
               className="group/next inline-flex items-center gap-2 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl bg-[#161a23]/95 hover:bg-emerald-500 text-white hover:text-black text-xs sm:text-sm font-bold backdrop-blur-md transition-all cursor-pointer shadow-2xl border border-white/20 hover:border-emerald-400 active:scale-95"
-              title={`Next S${nextTargetSeason} E${nextDisplayEpisodeNumber}`}
+              title={`Next S${nextTarget.season} E${nextTarget.episode}`}
             >
-              <span>Next S{nextTargetSeason} E{nextDisplayEpisodeNumber}</span>
+              <span>Next S{nextTarget.season} E{nextTarget.episode}</span>
               <SkipForward className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current transition-transform group-hover/next:translate-x-0.5" />
             </button>
           </div>
         )}
 
-        {/* Loading Overlay */}
+
+
+        {/* Cinematic Loading Overlay */}
         {isLoading && !hasError && (
-          <div className="absolute inset-0 z-20 bg-[#0a0c10] flex flex-col items-center justify-center transition-opacity duration-300">
+          <div className="absolute inset-0 z-40 bg-[#06080c] flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
             {poster && (
               <Image
                 src={poster}
                 alt={title}
                 fill
-                className="object-cover opacity-20 blur-sm pointer-events-none"
+                priority
+                className="object-cover opacity-15 blur-md scale-105 transition-transform duration-1000 ease-out pointer-events-none"
                 sizes="(max-width: 1200px) 100vw, 1200px"
               />
             )}
-            <div className="relative z-10 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-400 animate-spin" />
+
+            {/* Dark Radial Vignette Scrim */}
+            <div className="absolute inset-0 bg-radial from-transparent via-[#06080c]/80 to-[#06080c] pointer-events-none" />
+
+            {/* Glowing Film Icon */}
+            <div className="relative z-10 grid place-items-center w-24 h-24">
+              {/* Outer pulsing ring */}
+              <div className="col-start-1 row-start-1 w-20 h-20 rounded-full border border-emerald-500/30 bg-emerald-500/10 animate-ping pointer-events-none" />
+
+              {/* Center glow halo */}
+              <div className="col-start-1 row-start-1 w-16 h-16 rounded-full bg-emerald-500/20 blur-xl pointer-events-none" />
+
+              {/* Main glass circle with Film icon */}
+              <div className="col-start-1 row-start-1 w-16 h-16 rounded-full border border-emerald-500/40 bg-emerald-950/60 backdrop-blur-md flex items-center justify-center shadow-[0_0_35px_rgba(16,185,129,0.35)]">
+                <Film className="w-7 h-7 text-emerald-400 animate-pulse" />
+              </div>
             </div>
           </div>
         )}
 
-        {/* Auto Next Countdown Overlay (Only when next episode exists) */}
-        {countdown !== null && hasNext && (
-          <div className="absolute inset-0 z-40 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+        {/* Auto Next Countdown Overlay */}
+        {countdown !== null && nextTarget && (
+          <div className="absolute inset-0 z-40 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
             <div className="w-14 h-14 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center mb-3">
               <FastForward className="w-7 h-7 text-emerald-400 animate-pulse" />
             </div>
             <h3 className="text-lg sm:text-xl font-bold text-white mb-1 font-custom1">
-              Next S{nextTargetSeason} E{nextDisplayEpisodeNumber} starting in {countdown}s
+              Next S{nextTarget.season} E{nextTarget.episode} starting in {countdown}s
             </h3>
             <p className="text-xs sm:text-sm text-zinc-400 mb-5 font-custom2">
               Auto Next is enabled
@@ -737,148 +583,119 @@ export default function VideoPlayer({
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  if (nextTarget) {
-                    switchToEpisode(nextTarget.season, nextTarget.episode);
-                  }
-                }}
+                onClick={() => switchToEpisode(nextTarget.season, nextTarget.episode)}
                 className="font-custom2 inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-xs sm:text-sm font-bold text-black shadow-lg shadow-emerald-500/30 transition-all cursor-pointer"
               >
                 <SkipForward className="w-4 h-4" />
-                <span>Play S{nextTargetSeason} E{nextDisplayEpisodeNumber}</span>
+                <span>Play S{nextTarget.season} E{nextTarget.episode}</span>
               </button>
             </div>
           </div>
         )}
 
-        {/* Error Overlay */}
+        {/* Error Overlay with Retry */}
         {hasError && (
-          <div className="absolute inset-0 z-30 bg-[#0e1117] flex flex-col items-center justify-center gap-4 p-6 text-center">
-            <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+          <div className="absolute inset-0 z-30 bg-[#0a0d14] flex flex-col items-center justify-center gap-4 p-6 text-center animate-in fade-in">
+            <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 mb-1">
               <AlertCircle className="w-6 h-6" />
             </div>
-            <div className="space-y-1 max-w-sm">
+            <div className="space-y-1.5 max-w-sm">
               <h3 className="text-base font-bold text-white">
-                Unable to load video on this server.
+                Unable to load stream at this moment.
               </h3>
-              <p className="text-xs text-zinc-400">
-                Please try switching to another server below or retry.
+              <p className="text-xs text-zinc-400 leading-relaxed">
+                {errorMessage || "The media stream source may be unreachable or experiencing high load. Please try again."}
               </p>
             </div>
             <button
               type="button"
-              onClick={handleRetry}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-white transition-all active:scale-95 cursor-pointer shadow-md"
+              onClick={() => {
+                setIsLoading(true);
+                setHasError(false);
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs sm:text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-lg shadow-emerald-500/20 mt-2"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Retry</span>
+              <span>Retry Stream</span>
             </button>
           </div>
         )}
 
-        {/* Transparent Fullscreen Click Catcher positioned directly over the bottom-right [⛶] icon of the player */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleFullscreen();
-          }}
-          className={`absolute z-30 opacity-0 cursor-pointer ${
-            isFullscreen
-              ? "bottom-1.5 right-1.5 sm:bottom-2.5 sm:right-2.5 w-12 h-12"
-              : "bottom-1 right-1 sm:bottom-2 sm:right-2 w-10 h-10 sm:w-11 sm:h-11"
-          }`}
-          title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-          aria-label="Fullscreen"
-        />
 
-        {/* Playback Iframe / Element */}
-        {source.type === "iframe" ? (
+
+        {/* Stream Iframe Player */}
+        {iframeSrc && !hasError && (
           <iframe
-            key={`${selectedServerUrl}-${reloadKey}`}
-            src={selectedServerUrl}
+            ref={iframeRef}
+            key={`${selectedServer}-${iframeSrc}`}
+            src={iframeSrc}
             title={title}
-            className="w-full h-full border-0 relative z-10"
+            className="w-full h-full border-0 absolute inset-0 z-10"
+            allow="accelerometer *; autoplay *; clipboard-write; encrypted-media *; gyroscope *; picture-in-picture *; web-share *; fullscreen *"
             allowFullScreen
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen; screen-wake-lock"
+            referrerPolicy="origin"
             onLoad={handleIframeLoad}
-            onError={() => {
-              setIsLoading(false);
-              setHasError(true);
-            }}
           />
-        ) : (
-          /* Future-proof Native / HLS player element */
-          <video
-            key={`${selectedServerUrl}-${reloadKey}`}
-            src={selectedServerUrl}
-            controls
-            className="w-full h-full object-contain relative z-10"
-            onLoadedData={() => setIsLoading(false)}
-            onError={() => {
-              setIsLoading(false);
-              setHasError(true);
-            }}
-          >
-            Your browser does not support HTML5 video streaming.
-          </video>
         )}
       </div>
 
-      {/* Control Bar: Multi-Server Selector + Auto Next Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-1 bg-transparent">
-        {/* Server Selection Pills */}
-        {servers.length > 1 && (
-          <div className="flex flex-wrap items-center gap-2">
-            {servers.map((srv) => {
-              // Match by provider hostname rather than exact URL so the active
-              // indicator stays correct after episode switching (URL changes per episode)
-              const getProviderKey = (url: string) => {
-                try { return new URL(url).hostname; } catch { return url; }
-              };
-              const isActive = getProviderKey(srv.url) === getProviderKey(selectedServerUrl);
-              return (
-                <button
-                  key={srv.id}
-                  type="button"
-                  onClick={() => handleServerChange(srv.url)}
-                  className={`font-custom2 inline-flex items-center justify-center px-4 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none active:scale-95 ${
-                    isActive
-                      ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20 font-bold"
-                      : "bg-[#161a23] hover:bg-[#202533] text-zinc-300 hover:text-white"
-                  }`}
-                >
-                  <span>{srv.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
+      {/* Control Bar: Multi-Server Switcher, Quick Seek & Fullscreen Trigger */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+        {/* Left: Server Selection Pills */}
+        <div className="flex items-center gap-1 bg-[#12151c] p-1 rounded-xl border border-zinc-800">
+          {SERVERS.map((srv) => (
+            <button
+              key={srv.id}
+              type="button"
+              onClick={() => {
+                if (selectedServer !== srv.id) {
+                  setSelectedServer(srv.id);
+                  setIsLoading(true);
+                  setHasError(false);
+                }
+              }}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedServer === srv.id
+                  ? "bg-emerald-500 text-black shadow-md shadow-emerald-500/20 font-bold"
+                  : "text-zinc-400 hover:text-white hover:bg-white/5"
+              }`}
+              title={`Switch to ${srv.name}`}
+            >
+              {srv.name}
+            </button>
+          ))}
+        </div>
 
-        {/* Action Controls: Auto Next (Only shown when a next episode actually exists) */}
-        {tvId && hasNext && (
-          <div className="flex items-center gap-2.5 ml-auto">
+        <div className="flex items-center gap-2">
+          {tvId && hasNextEpisode && (
             <button
               type="button"
               onClick={() => setAutoNext((prev) => !prev)}
-              className={`font-custom2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none border ${
-                autoNext
+              className={`font-custom2 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none border ${autoNext
                   ? "bg-emerald-500/15 border-emerald-400 text-emerald-300 shadow-md shadow-emerald-500/20 hover:bg-emerald-500/25"
                   : "bg-[#161a23] border-zinc-700/80 text-zinc-400 hover:border-zinc-500 hover:text-zinc-300"
-              }`}
+                }`}
               title="Toggle automatic playback for the next episode"
             >
               <span
-                className={`w-2 h-2 rounded-full transition-colors ${
-                  autoNext ? "bg-emerald-400" : "bg-zinc-600"
-                }`}
+                className={`w-2 h-2 rounded-full transition-colors ${autoNext ? "bg-emerald-400" : "bg-zinc-600"
+                  }`}
               />
               <span>Auto Next</span>
             </button>
-          </div>
-        )}
+          )}
+
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161a23] border border-zinc-700/80 hover:border-zinc-500 text-zinc-300 hover:text-white text-xs sm:text-sm font-semibold transition-all cursor-pointer select-none"
+            title="Toggle Fullscreen (F)"
+          >
+            <Maximize className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Fullscreen</span>
+          </button>
+        </div>
       </div>
     </div>
   );
 }
-

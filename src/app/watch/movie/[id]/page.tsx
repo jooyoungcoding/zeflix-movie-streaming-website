@@ -21,7 +21,8 @@ export default async function MovieWatchPage({ params }: PageProps) {
   }
 
   // Resolve video source through abstraction
-  const videoSource = await defaultVideoService.getMovieSource(id);
+  const tmdbId = String(movie.id || id || "").trim();
+  const videoSource = await defaultVideoService.getMovieSource(tmdbId);
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col pt-20 sm:pt-24 pb-16">
@@ -44,8 +45,18 @@ export default async function MovieWatchPage({ params }: PageProps) {
 
         {/* Video Player Container */}
         <VideoPlayer
+          tmdbId={tmdbId}
+          imdbId={movie.imdbId}
+          type="movie"
           source={videoSource}
           title={movie.title}
+          releaseYear={
+            movie.year
+              ? parseInt(movie.year, 10)
+              : movie.releaseDate
+                ? new Date(movie.releaseDate).getFullYear()
+                : 2024
+          }
           poster={movie.backdrop || movie.poster}
         />
       </div>

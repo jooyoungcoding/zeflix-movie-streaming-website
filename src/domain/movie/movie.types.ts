@@ -118,6 +118,7 @@ export interface SeasonItem {
 
 export interface MovieDetail {
   id: string;
+  imdbId?: string;
   title: string;
   rating: string;
   year: string;

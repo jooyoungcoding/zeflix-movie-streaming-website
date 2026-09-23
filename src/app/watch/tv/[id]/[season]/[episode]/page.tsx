@@ -50,9 +50,11 @@ export default async function TVWatchPage({ params }: PageProps) {
 
   const hasNextInSameSeason = currentEpIndex !== -1 && currentEpIndex < tv.episodes.length - 1;
 
+  const tmdbId = String(tv.id || id || "").trim();
+
   // Resolve video source through abstraction (VidLink internal button only supports same-season progression)
   const videoSource = await defaultVideoService.getEpisodeSource(
-    id,
+    tmdbId,
     sNum,
     epNum,
     hasNextInSameSeason
@@ -79,11 +81,23 @@ export default async function TVWatchPage({ params }: PageProps) {
 
         {/* Video Player Container with Next Episode Support */}
         <VideoPlayer
+          tmdbId={tmdbId}
+          type="tv"
+          title={tv.title}
+          releaseYear={
+            tv.year
+              ? parseInt(tv.year, 10)
+              : tv.releaseDate
+              ? new Date(tv.releaseDate).getFullYear()
+              : 2024
+          }
+          season={sNum}
+          episode={epNum}
+          episodeId={currentEp?.id ? String(currentEp.id) : undefined}
           source={videoSource}
-          title={`${tv.title} - S${sNum}E${epNum}`}
           poster={currentEp?.still || tv.backdrop || tv.poster}
           nextEpisodeUrl={nextEpisodeUrl}
-          tvId={id}
+          tvId={tmdbId}
           currentSeason={sNum}
           currentEpisode={epNum}
           seasons={tv.seasons}
