@@ -1234,6 +1234,7 @@ export const getMovieDetailService = async (
       releaseDate,
       status,
       isUpcoming,
+      imdbId: details.imdb_id || undefined,
     };
   } catch (err: unknown) {
     const isNotFound =

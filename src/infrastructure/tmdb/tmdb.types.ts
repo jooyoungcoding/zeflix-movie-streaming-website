@@ -181,6 +181,7 @@ export interface TMDBSeasonDetails {
 
 export interface TMDBMovieDetails {
   id: number;
+  imdb_id?: string | null;
   title: string;
   overview?: string | null;
   release_date?: string;
