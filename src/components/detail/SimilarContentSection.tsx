@@ -86,6 +86,11 @@ export default function SimilarContentSection({
   const titleText =
     type === "Movie" ? "Similar Movies For You" : "Similar TV Series For You";
 
+  const seeAllHref =
+    type === "Movie"
+      ? "/discover?tab=movies&country=all&genre=all&sort=all#browse-section"
+      : "/discover?tab=tv&country=all&genre=all&sort=all#browse-section";
+
   const handleCardClick = (item: SimilarContentItem) => {
     if (item.type === "Movie") {
       router.push(`/movies/${item.id}`);
@@ -107,17 +112,17 @@ export default function SimilarContentSection({
 
   return (
     <div className="w-full space-y-4 my-8 sm:my-12">
-      {/* Header Row: Title on Left, See More on Right */}
+      {/* Header Row: Title on Left, See All on Right */}
       <div className="flex items-center justify-between">
         <h3 className="text-xl sm:text-2xl font-bold text-white tracking-wide font-custom2">
           {titleText}
         </h3>
 
         <Link
-          href="/discover"
+          href={seeAllHref}
           className="font-custom1 px-4 py-1.5 rounded-xl text-xs sm:text-sm font-semibold text-white bg-[#1f242d] hover:bg-[#2a303d] border border-white/10 transition-all active:scale-95 cursor-pointer shadow-sm"
         >
-          See more
+          See all
         </Link>
       </div>
 

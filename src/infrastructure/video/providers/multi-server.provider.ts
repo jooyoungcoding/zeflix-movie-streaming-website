@@ -1,15 +1,14 @@
 import { VideoProvider, VideoSource, VideoServerOption } from "../video.types";
 
 /**
- * MultiServerProvider Implementation
- * Provides clean primary playback stream (VidLink with Emerald Zeflix theme)
- * and alternative fallback servers for maximum reliability.
+ * MultiServerProvider (Deprecated)
+ * Provided for backward compatibility. Uses VidLink (primary) and SuperEmbed (fallback).
  */
 export class MultiServerProvider implements VideoProvider {
   readonly name = "ZeflixMultiServer";
 
   /**
-   * Generates multi-server video sources for a movie
+   * Generates video sources for a movie
    */
   async getMovieSource(tmdbId: string): Promise<VideoSource | null> {
     const cleanId = this.sanitizeTmdbId(tmdbId);
@@ -18,24 +17,14 @@ export class MultiServerProvider implements VideoProvider {
     const servers: VideoServerOption[] = [
       {
         id: "server-vidlink",
-        name: "Server 1",
-        url: `https://vidlink.pro/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
+        name: "VidLink (Primary)",
+        url: `https://vidlink.pro/movie/${cleanId}?primaryColor=0096FF&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
         isDefault: true,
       },
       {
-        id: "server-2embed",
-        name: "Server 2",
-        url: `https://www.2embed.cc/embed/${cleanId}`,
-      },
-      {
-        id: "server-autoembed",
-        name: "Server 3",
-        url: `https://player.autoembed.cc/embed/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
-      },
-      {
-        id: "server-vidsrc-to",
-        name: "Server 4",
-        url: `https://vidsrc.to/embed/movie/${cleanId}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
+        id: "server-superembed",
+        name: "SuperEmbed (Fallback)",
+        url: `https://multiembed.mov/?video_id=${cleanId}&tmdb=1`,
       },
     ];
 
@@ -48,7 +37,7 @@ export class MultiServerProvider implements VideoProvider {
   }
 
   /**
-   * Generates multi-server video sources for a TV series episode
+   * Generates video sources for a TV series episode
    */
   async getEpisodeSource(
     tmdbId: string,
@@ -64,24 +53,14 @@ export class MultiServerProvider implements VideoProvider {
     const servers: VideoServerOption[] = [
       {
         id: "server-vidlink",
-        name: "Server 1",
-        url: `https://vidlink.pro/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true&nextbutton=false`,
+        name: "VidLink (Primary)",
+        url: `https://vidlink.pro/tv/${cleanId}/${s}/${ep}?primaryColor=0096FF&secondaryColor=12151c&iconColor=ffffff&autoplay=false&nextbutton=false`,
         isDefault: true,
       },
       {
-        id: "server-2embed",
-        name: "Server 2",
-        url: `https://www.2embed.cc/embedtv/${cleanId}?s=${s}&e=${ep}`,
-      },
-      {
-        id: "server-autoembed",
-        name: "Server 3",
-        url: `https://player.autoembed.cc/embed/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`,
-      },
-      {
-        id: "server-vidsrc-to",
-        name: "Server 4",
-        url: `https://vidsrc.to/embed/tv/${cleanId}/${s}/${ep}?primaryColor=10b981&secondaryColor=12151c&iconColor=ffffff&autoplay=true`,
+        id: "server-superembed",
+        name: "SuperEmbed (Fallback)",
+        url: `https://multiembed.mov/?video_id=${cleanId}&s=${s}&e=${ep}&tmdb=1`,
       },
     ];
 
@@ -93,9 +72,6 @@ export class MultiServerProvider implements VideoProvider {
     };
   }
 
-  /**
-   * Sanitize TMDB ID to prevent arbitrary URL injection
-   */
   private sanitizeTmdbId(id: string): string | null {
     if (!id || typeof id !== "string") return null;
     const trimmed = id.trim();

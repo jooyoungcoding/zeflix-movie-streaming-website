@@ -7,7 +7,6 @@ import {
   Play,
   Bookmark,
   Star,
-  Download,
   Share2,
   Tv,
 } from "lucide-react";
@@ -25,6 +24,10 @@ import {
 } from "@/features/watchlist/api/watchlist.api";
 import { useAuthStore } from "@/store/auth.store";
 import { useAuthModalStore } from "@/store/auth-modal.store";
+import {
+  determineWatchCategory,
+  buildWatchUrl,
+} from "@/features/playback/service/watch-routing.service";
 
 interface TVSeriesDetailViewProps {
   tv: TVSeriesDetail;
@@ -70,12 +73,21 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
     };
   }, [tv.id]);
 
+  const category = determineWatchCategory({
+    tmdbId: String(tv.id),
+    title: tv.title,
+    genres: tv.genres,
+    originCountry: tv.originCountry,
+    productionCountries: tv.productionCountries,
+    originalLanguage: tv.originalLanguage,
+    mediaType: "tv",
+  });
+
   const handleWatchNow = () => {
     // Navigate to first episode of active season or season 1 episode 1
     const firstEp = tv.episodes[0];
-    const sNum = firstEp?.seasonNumber || tv.currentSeasonNumber || 1;
     const epNum = firstEp?.episodeNumber || 1;
-    router.push(`/watch/tv/${tv.id}/${sNum}/${epNum}`);
+    router.push(buildWatchUrl({ type: "tv", tmdbId: tv.id, category, episode: epNum }));
   };
 
   const toggleWatchlist = async () => {
@@ -139,18 +151,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
     }
   };
 
-  const handleDownload = () => {
-    toast("Download feature will be available soon!", {
-      id: "download-info",
-      icon: "📥",
-      duration: 2000,
-      style: {
-        background: "#12151c",
-        color: "#fff",
-        border: "1px solid rgba(255,255,255,0.1)",
-      },
-    });
-  };
+
 
   return (
     <div
@@ -167,17 +168,20 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
               alt={tv.title}
               fill
               priority
-              className="object-cover object-center brightness-[0.55] sm:brightness-[0.38] transition-all duration-300"
+              className="object-cover object-center transition-all duration-300"
               sizes="100vw"
             />
           ) : (
             <div className="w-full h-full bg-[#0d1017]" />
           )}
 
-          {/* Gradients: Lighter on mobile so backdrop shines through, deeper on desktop for readability */}
-          <div className="absolute top-0 inset-x-0 h-20 sm:h-32 bg-gradient-to-b from-black/70 via-black/20 to-transparent sm:from-black sm:via-black/60" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent sm:bg-gradient-to-r sm:from-black sm:via-black/80 sm:to-transparent lg:w-3/4" />
-          <div className="absolute bottom-0 inset-x-0 h-24 sm:h-44 bg-gradient-to-t from-black via-black/60 sm:via-black/90 to-transparent" />
+          {/* Cinematic Vignette & Gradients Overlay (Aligned with HeroSlider) */}
+          {/* Left text-protection gradient: soft shadow on PC, minimal on mobile */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-black/10 to-transparent lg:w-[55%] lg:from-black/55 lg:via-black/20 lg:to-transparent z-10 pointer-events-none" />
+          {/* Bottom fade gradient: smooth seamless fade to page, non-intrusive */}
+          <div className="absolute inset-x-0 bottom-0 h-48 sm:h-64 lg:h-72 bg-gradient-to-t from-black via-black/40 to-transparent z-10 pointer-events-none" />
+          {/* Top header fade: subtle navbar area fade */}
+          <div className="absolute top-0 inset-x-0 h-24 sm:h-32 bg-gradient-to-b from-black/50 via-black/15 to-transparent z-10 pointer-events-none" />
         </div>
 
         {/* Hero Content */}
@@ -210,7 +214,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
               ) : null}
 
               {/* Title */}
-              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-md">
+              <h1 className="text-3xl sm:text-4xl lg:text-6xl font-black text-white tracking-tight leading-tight drop-shadow-[0_4px_16px_rgba(0,0,0,0.8)]">
                 {tv.title}
               </h1>
 
@@ -260,7 +264,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
               </div>
             </div>
 
-            {/* Action Buttons Row (Spans Full Width: Left buttons on left, 3 buttons on the far right on desktop; on mobile: Trailer, Download, Copy Link row sits horizontally below Watch Now & Watchlist) */}
+            {/* Action Buttons Row (Spans Full Width: Left buttons on left, right buttons on desktop; on mobile: Trailer, Copy Link row sits horizontally below Watch Now & Watchlist) */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pt-1 w-full">
               {/* Left Action Buttons (Row 1 on mobile: Watch Now & Add Watchlist) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto">
@@ -305,7 +309,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                 </button>
               </div>
 
-              {/* Right Action Buttons (Row 2 on mobile: Trailer, Download, Copy Link horizontally balanced) */}
+              {/* Right Action Buttons (Row 2 on mobile: Trailer, Copy Link horizontally balanced) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto justify-start md:justify-end md:ml-auto">
                 {tv.trailerId && (
                   <button
@@ -318,16 +322,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                   </button>
                 )}
 
-                {/* Download Quick Button */}
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className="w-11 sm:w-12 h-11 sm:h-12 inline-flex items-center justify-center rounded-xl bg-[#1c202a] hover:bg-[#282e3c] active:scale-95 text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer shadow-md shrink-0"
-                  title="Download"
-                  aria-label="Download"
-                >
-                  <Download className="w-4 h-4" />
-                </button>
+
 
                 {/* Share / Copy Link Quick Button */}
                 <button
@@ -393,6 +388,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
         {activeTab === "episodes" ? (
           <EpisodesTab
             tvId={tv.id}
+            category={category}
             seasons={tv.seasons}
             initialEpisodes={tv.episodes}
             currentSeasonNumber={tv.currentSeasonNumber}

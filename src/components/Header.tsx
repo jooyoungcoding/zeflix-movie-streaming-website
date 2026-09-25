@@ -11,7 +11,6 @@ import {
   SquarePen,
   Bookmark,
   History,
-  Download,
   Settings,
   LogOut,
 } from "lucide-react";
@@ -476,14 +475,6 @@ export default function Header() {
                     <span>History</span>
                   </Link>
 
-                  <Link
-                    href="/download"
-                    onClick={() => setIsProfileOpen(false)}
-                    className="flex items-center gap-3.5 px-3 py-2.5 rounded-xl text-[14px] font-medium transition-all duration-150 group text-zinc-200 hover:text-white hover:bg-white/[0.08]"
-                  >
-                    <Download className="w-5 h-5 transition-colors shrink-0 stroke-[2] text-zinc-400 group-hover:text-white" />
-                    <span>Download</span>
-                  </Link>
 
                   <Link
                     href="/settings"
@@ -649,17 +640,9 @@ export default function Header() {
                     <span>History</span>
                   </Link>
                   <Link
-                    href="/download"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
-                  >
-                    <Download className="w-4 h-4 text-zinc-400" />
-                    <span>Download</span>
-                  </Link>
-                  <Link
                     href="/settings"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="col-span-2 flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
                   >
                     <Settings className="w-4 h-4 text-zinc-400" />
                     <span>Settings</span>

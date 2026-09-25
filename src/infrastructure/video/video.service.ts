@@ -1,51 +1,61 @@
 import { VideoProvider, VideoSource } from "./video.types";
-import { MultiServerProvider } from "./providers/multi-server.provider";
+import { defaultPlaybackService } from "@/features/playback/service/playback.service";
 
 /**
- * Video Service - Centralized video playback resolution layer
- * Orchestrates video providers and manages source generation
+ * Video Service - Backward-compatible facade for Zeflix streaming architecture
+ * Delegates to the centralized PlaybackService.
  */
 export class VideoService {
-  private activeProvider: VideoProvider;
+  private activeProviderName: string = "ZeflixPlaybackEngine";
 
-  constructor(provider?: VideoProvider) {
-    // Default to clean MultiServerProvider (VidLink + Fallbacks)
-    this.activeProvider = provider || new MultiServerProvider();
+  constructor(_provider?: VideoProvider) {
+    void _provider;
+    // Deprecated provider param kept for signature compatibility
   }
 
   /**
-   * Set or swap active video provider at runtime
+   * Set or swap active video provider at runtime (deprecated facade)
    */
   setProvider(provider: VideoProvider): void {
-    this.activeProvider = provider;
+    this.activeProviderName = provider.name;
   }
 
   /**
    * Get current active provider name
    */
   getProviderName(): string {
-    return this.activeProvider.name;
+    return this.activeProviderName;
   }
 
   /**
-   * Resolve movie video source
+   * Resolve movie video source via PlaybackService
    */
   async getMovieSource(tmdbId: string): Promise<VideoSource | null> {
     if (!tmdbId || typeof tmdbId !== "string") {
       return null;
     }
-    return this.activeProvider.getMovieSource(tmdbId.trim());
+    const session = await defaultPlaybackService.getMoviePlayback(tmdbId.trim());
+    const primary = session.sources[0];
+    if (!primary) return null;
+
+    return {
+      type: primary.type,
+      url: primary.url,
+      providerName: primary.providerName,
+      title: session.mediaInfo.title,
+    };
   }
 
   /**
-   * Resolve TV episode video source
+   * Resolve TV episode video source via PlaybackService
    */
   async getEpisodeSource(
     tmdbId: string,
     seasonNumber: number,
     episodeNumber: number,
-    hasNextEpisode: boolean = true
+    _hasNextEpisode: boolean = true
   ): Promise<VideoSource | null> {
+    void _hasNextEpisode;
     if (!tmdbId || typeof tmdbId !== "string") {
       return null;
     }
@@ -56,12 +66,20 @@ export class VideoService {
       return null;
     }
 
-    return this.activeProvider.getEpisodeSource(
+    const session = await defaultPlaybackService.getTvPlayback(
       tmdbId.trim(),
       seasonNumber,
-      episodeNumber,
-      hasNextEpisode
+      episodeNumber
     );
+    const primary = session.sources[0];
+    if (!primary) return null;
+
+    return {
+      type: primary.type,
+      url: primary.url,
+      providerName: primary.providerName,
+      title: session.mediaInfo.title,
+    };
   }
 }
 

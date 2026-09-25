@@ -1235,6 +1235,9 @@ export const getMovieDetailService = async (
       status,
       isUpcoming,
       imdbId: details.imdb_id || undefined,
+      originCountry: details.production_countries?.map((c) => c.iso_3166_1).filter(Boolean) || [],
+      productionCountries: details.production_countries?.map((c) => c.iso_3166_1).filter(Boolean) || [],
+      originalLanguage: details.original_language || "",
     };
   } catch (err: unknown) {
     const isNotFound =
@@ -1369,6 +1372,9 @@ export const getTVSeriesDetailService = async (
       releaseDate,
       status,
       isUpcoming,
+      originCountry: details.origin_country || [],
+      productionCountries: details.production_countries?.map((c) => c.iso_3166_1).filter(Boolean) || [],
+      originalLanguage: details.original_language || "",
     };
   } catch (err: unknown) {
     const isNotFound =

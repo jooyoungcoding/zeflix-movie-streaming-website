@@ -155,8 +155,8 @@ export default function HeroSlider() {
     return (
       <div className="relative w-full h-[92vh] min-h-[620px] max-h-[960px] bg-[#07090e] overflow-hidden select-none animate-pulse">
         {/* Shimmer gradient overlay */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-zinc-950/60 to-black/80" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black via-black/70 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-72 sm:h-80 lg:h-96 bg-gradient-to-t from-black via-zinc-950/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent lg:w-[55%]" />
 
         <div className="relative z-20 w-full h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-end pb-8 sm:pb-12 lg:pb-16 pt-24">
           <div className="max-w-2xl space-y-4">
@@ -221,13 +221,13 @@ export default function HeroSlider() {
                 <div className="w-full h-full bg-gradient-to-br from-zinc-900 via-black to-zinc-950" />
               )}
 
-              {/* Cinematic Vignette & Gradients Overlay */}
-              {/* Left text-protection gradient (reduced shadow) */}
-              <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent z-10 lg:w-[65%]" />
-              {/* Bottom fade gradient */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent z-10" />
-              {/* Top header fade */}
-              <div className="absolute inset-0 bg-gradient-to-b from-black/90 via-transparent to-transparent z-10" />
+              {/* Cinematic Vignette & Gradients Overlay (Reduced Shadows for PC & Mobile) */}
+              {/* Left text-protection gradient: soft shadow on PC, minimal on mobile */}
+              <div className="absolute inset-0 bg-gradient-to-r from-black/35 via-black/10 to-transparent lg:w-[55%] lg:from-black/55 lg:via-black/20 lg:to-transparent z-10 pointer-events-none" />
+              {/* Bottom fade gradient: smooth seamless fade to page, non-intrusive */}
+              <div className="absolute inset-x-0 bottom-0 h-72 sm:h-80 lg:h-96 bg-gradient-to-t from-black via-black/40 to-transparent z-10 pointer-events-none" />
+              {/* Top header fade: subtle navbar area fade */}
+              <div className="absolute top-0 inset-x-0 h-28 sm:h-36 bg-gradient-to-b from-black/50 via-black/15 to-transparent z-10 pointer-events-none" />
             </div>
           </div>
         );

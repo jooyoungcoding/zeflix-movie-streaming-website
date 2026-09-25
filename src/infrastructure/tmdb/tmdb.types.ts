@@ -194,6 +194,9 @@ export interface TMDBMovieDetails {
   runtime?: number | null;
   status?: string;
   tagline?: string | null;
+  production_countries?: Array<{ iso_3166_1: string; name: string }>;
+  original_language?: string;
+  origin_country?: string[];
   videos?: TMDBVideosResponse;
   release_dates?: TMDBReleaseDatesResponse;
   credits?: TMDBCreditsResponse;
@@ -221,6 +224,9 @@ export interface TMDBTVDetails {
   seasons?: TMDBSeasonSummary[];
   status?: string;
   tagline?: string | null;
+  production_countries?: Array<{ iso_3166_1: string; name: string }>;
+  original_language?: string;
+  origin_country?: string[];
   videos?: TMDBVideosResponse;
   content_ratings?: TMDBContentRatingsResponse;
   credits?: TMDBCreditsResponse;
@@ -254,5 +260,50 @@ export interface TMDBCountry {
   english_name: string;
   native_name: string;
 }
+
+export interface TMDBPersonCreditItem {
+  id: number;
+  title?: string;
+  name?: string;
+  original_title?: string;
+  original_name?: string;
+  media_type: "movie" | "tv";
+  character?: string;
+  overview?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  release_date?: string;
+  first_air_date?: string;
+  vote_average?: number;
+  vote_count?: number;
+  popularity?: number;
+  genre_ids?: number[];
+  order?: number;
+  episode_count?: number;
+  department?: string;
+}
+
+export interface TMDBPersonCombinedCredits {
+  cast: TMDBPersonCreditItem[];
+  crew?: TMDBPersonCreditItem[];
+}
+
+export interface TMDBPersonDetails {
+  id: number;
+  name: string;
+  also_known_as?: string[];
+  biography?: string;
+  birthday?: string | null;
+  deathday?: string | null;
+  gender?: number;
+  homepage?: string | null;
+  imdb_id?: string | null;
+  known_for_department?: string;
+  place_of_birth?: string | null;
+  popularity?: number;
+  profile_path?: string | null;
+  combined_credits?: TMDBPersonCombinedCredits;
+}
+
 
 
