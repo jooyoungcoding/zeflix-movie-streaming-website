@@ -81,6 +81,7 @@ export function useWatchlist() {
   );
 
   const removeItemById = useCallback(async (watchlistId: string, _title?: string) => {
+    void _title;
     // Optimistic removal
     setItems((prev) => prev.filter((item) => item.watchlist_id !== watchlistId));
 

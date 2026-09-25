@@ -121,6 +121,23 @@ body {
   animation: slideFromLeft 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+/* Video Loader Pulse Ring Animation */
+@keyframes loaderRingPulse {
+  0%, 100% {
+    transform: scale(0.92);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.9;
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.35);
+  }
+}
+
+.animate-loader-ring {
+  animation: loaderRingPulse 1.3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
 /* Floating Space Animations */
 @keyframes cosmicFloatSlow {
 
@@ -203,3 +220,35 @@ body {
   background: transparent;
   display: none;
 }
+
+/* From Uiverse.io by milley69 - White Theme */ 
+.loading svg polyline {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.loading svg polyline#back {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.2);
+}
+
+.loading svg polyline#front {
+  fill: none;
+  stroke: #ffffff;
+  stroke-dasharray: 48, 144;
+  stroke-dashoffset: 192;
+  animation: dash_682 1.4s linear infinite;
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+}
+
+@keyframes dash_682 {
+  72.5% {
+    opacity: 0;
+  }
+
+  to {
+    stroke-dashoffset: 0;
+  }
+}

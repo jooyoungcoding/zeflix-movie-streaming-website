@@ -136,6 +136,9 @@ export interface MovieDetail {
   releaseDate?: string;
   status?: string;
   isUpcoming?: boolean;
+  originCountry?: string[];
+  productionCountries?: string[];
+  originalLanguage?: string;
 }
 
 export interface TVSeriesDetail {
@@ -160,6 +163,9 @@ export interface TVSeriesDetail {
   releaseDate?: string;
   status?: string;
   isUpcoming?: boolean;
+  originCountry?: string[];
+  productionCountries?: string[];
+  originalLanguage?: string;
 }
 
 export interface SimilarContentItem {

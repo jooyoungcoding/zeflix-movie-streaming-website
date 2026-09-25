@@ -1,0 +1,132 @@
+import { PlaybackProvider } from "../providers/playback-provider.interface";
+import { VidLinkProvider } from "../providers/vidlink.provider";
+import { SuperEmbedProvider } from "../providers/superembed.provider";
+import { SuperSentaiProvider } from "../providers/super-sentai.provider";
+import { YenimeProvider } from "../providers/yenime.provider";
+import {
+  isSuperSentaiSeries,
+  SuperSentaiMetadataCandidate,
+} from "./super-sentai.detector";
+import {
+  isAnimeContent,
+  AnimeMetadataCandidate,
+} from "./anime.detector";
+
+import { WatchCategory } from "../types/playback.types";
+
+export interface PlaybackRoutingContext {
+  mediaType: "movie" | "tv";
+  tmdbId: string;
+  title?: string;
+  category?: WatchCategory;
+  metadata?: SuperSentaiMetadataCandidate & AnimeMetadataCandidate;
+}
+
+/**
+ * Playback Router
+ * Centralizes provider resolution strategy based on content type & watch category:
+ *
+ * Japanese Super Sentai Series:
+ *   1. SuperSentaiProvider (Dedicated Primary: TokuFun -> TokuAddon)
+ *   2. VidLinkProvider (Fallback 1)
+ *   3. SuperEmbedProvider (Fallback 2)
+ *
+ * Anime (Japanese Animation TV & Movies):
+ *   1. YenimeProvider (Dedicated Primary)
+ *   2. VidLinkProvider (Fallback 1)
+ *   3. SuperEmbedProvider (Fallback 2)
+ *
+ * Normal Movies & TV Series:
+ *   1. VidLinkProvider (Primary)
+ *   2. SuperEmbedProvider (Fallback)
+ */
+export class PlaybackRouter {
+  constructor(
+    private readonly vidlinkProvider: PlaybackProvider = new VidLinkProvider(),
+    private readonly superembedProvider: PlaybackProvider = new SuperEmbedProvider(),
+    private readonly superSentaiProvider: PlaybackProvider = new SuperSentaiProvider(),
+    private readonly yenimeProvider: PlaybackProvider = new YenimeProvider()
+  ) {}
+
+  /**
+   * Determine whether current routing context is Japanese Super Sentai
+   */
+  isSuperSentai(context: PlaybackRoutingContext): boolean {
+    if (context.category === "sentai") {
+      return true;
+    }
+    if (context.category === "anime" || context.category === "normal") {
+      return false;
+    }
+    if (context.mediaType !== "tv") {
+      return false;
+    }
+    return isSuperSentaiSeries(context.tmdbId, context.metadata);
+  }
+
+  /**
+   * Determine whether current routing context is Anime
+   * Note: Super Sentai takes precedence and is excluded from anime routing.
+   */
+  isAnime(context: PlaybackRoutingContext): boolean {
+    if (context.category === "anime") {
+      return true;
+    }
+    if (context.category === "sentai" || context.category === "normal") {
+      return false;
+    }
+    if (this.isSuperSentai(context)) {
+      return false;
+    }
+    return isAnimeContent(context.tmdbId, {
+      ...context.metadata,
+      title: context.title,
+    });
+  }
+
+  /**
+   * Resolve ordered list of providers for the given context
+   */
+  resolveProviders(context: PlaybackRoutingContext): PlaybackProvider[] {
+    // 1. Explicit Category Resolution
+    if (context.category === "sentai") {
+      return [
+        this.superSentaiProvider,
+        this.vidlinkProvider,
+        this.superembedProvider,
+      ];
+    }
+
+    if (context.category === "anime") {
+      return [
+        this.yenimeProvider,
+        this.vidlinkProvider,
+        this.superembedProvider,
+      ];
+    }
+
+    if (context.category === "normal") {
+      return [this.vidlinkProvider, this.superembedProvider];
+    }
+
+    // 2. Dynamic Fallback Detection
+    if (this.isSuperSentai(context)) {
+      return [
+        this.superSentaiProvider,
+        this.vidlinkProvider,
+        this.superembedProvider,
+      ];
+    }
+
+    if (this.isAnime(context)) {
+      return [
+        this.yenimeProvider,
+        this.vidlinkProvider,
+        this.superembedProvider,
+      ];
+    }
+
+    // 3. Default Normal Movie / TV
+    return [this.vidlinkProvider, this.superembedProvider];
+  }
+}

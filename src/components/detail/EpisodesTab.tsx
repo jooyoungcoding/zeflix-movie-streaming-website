@@ -5,9 +5,11 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { EpisodeItem, SeasonItem } from "@/domain/movie/movie.types";
+import { WatchCategory } from "@/features/playback/types/playback.types";
 
 interface EpisodesTabProps {
   tvId: string;
+  category?: WatchCategory;
   seasons: SeasonItem[];
   initialEpisodes: EpisodeItem[];
   currentSeasonNumber: number;
@@ -17,6 +19,7 @@ interface EpisodesTabProps {
 
 export default function EpisodesTab({
   tvId,
+  category,
   seasons,
   initialEpisodes,
   currentSeasonNumber,
@@ -166,8 +169,21 @@ export default function EpisodesTab({
   };
 
   const handleWatchEpisode = (ep: EpisodeItem) => {
-    // If on watch page, switch episode in-place to preserve fullscreen without unmounting
-    if (typeof window !== "undefined" && window.location.pathname.startsWith("/watch")) {
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    const effectiveCategory: WatchCategory =
+      category ||
+      (path.includes("/anime/")
+        ? "anime"
+        : path.includes("/sentai/")
+        ? "sentai"
+        : "normal");
+    const targetUrl = `/watch/tv/${effectiveCategory}/${tvId}/${ep.episodeNumber}`;
+
+    setActiveEpisode(ep.episodeNumber);
+    setActiveSeason(ep.seasonNumber);
+
+    // Notify any mounted VideoPlayer component to hot-switch the stream immediately
+    if (typeof window !== "undefined") {
       window.dispatchEvent(
         new CustomEvent("zeflix:change-episode", {
           detail: {
@@ -176,11 +192,13 @@ export default function EpisodesTab({
           },
         })
       );
-      if (!document.fullscreenElement) {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-    } else {
-      router.push(`/watch/tv/${tvId}/${ep.seasonNumber}/${ep.episodeNumber}`);
+    }
+
+    // Navigate to the target episode URL
+    router.push(targetUrl);
+
+    if (typeof document !== "undefined" && !document.fullscreenElement) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
@@ -226,7 +244,7 @@ export default function EpisodesTab({
             </button>
 
             {isDropdownOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-[#191d26] border border-white/10 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-44 bg-[#191d26] border border-white/10 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20" style={{ maxHeight: "calc(6 * 36px + 12px)" }}>
                 {seasons.map((s) => (
                   <button
                     key={s.id || s.seasonNumber}

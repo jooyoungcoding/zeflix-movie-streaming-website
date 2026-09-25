@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight, User } from "lucide-react";
 import { CastMember } from "@/domain/movie/movie.types";
 
@@ -90,19 +91,20 @@ export default function CastSection({ cast }: CastSectionProps) {
             }}
           >
             {cast.map((member) => (
-              <div
+              <Link
                 key={member.id}
-                className="shrink-0 flex items-center gap-3 select-none"
+                href={`/person/${member.id}`}
+                className="shrink-0 flex items-center gap-3 select-none group/cast cursor-pointer hover:opacity-95 transition-opacity"
                 style={{ width: `${itemWidth}px` }}
               >
                 {/* Avatar Circle */}
-                <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0 shadow-md">
+                <div className="relative w-11 h-11 sm:w-12 sm:h-12 rounded-full overflow-hidden bg-zinc-800 shrink-0 shadow-md group-hover/cast:ring-2 group-hover/cast:ring-emerald-500/50 transition-all duration-300">
                   {member.avatar ? (
                     <Image
                       src={member.avatar}
                       alt={member.name}
                       fill
-                      className="object-cover"
+                      className="object-cover group-hover/cast:scale-105 transition-transform duration-300"
                       sizes="48px"
                     />
                   ) : (
@@ -114,14 +116,14 @@ export default function CastSection({ cast }: CastSectionProps) {
 
                 {/* Cast Member Names (no border, clean background) */}
                 <div className="flex flex-col min-w-0">
-                  <span className="text-xs sm:text-sm font-bold text-white truncate block leading-tight">
+                  <span className="text-xs sm:text-sm font-bold text-white truncate block leading-tight group-hover/cast:text-emerald-400 transition-colors">
                     {member.name}
                   </span>
                   <span className="text-[11px] sm:text-xs text-zinc-400 truncate block leading-tight mt-0.5">
                     {member.character}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
