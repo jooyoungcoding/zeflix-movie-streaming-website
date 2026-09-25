@@ -354,14 +354,9 @@ export default function FeaturedInZeflix() {
 
           {/* Posters Carousel */}
           <div className="order-1 lg:order-2 lg:col-span-5 relative flex items-center justify-start lg:justify-end py-1 w-full overflow-hidden">
-            {/* Carousel Viewport with desktop dynamic sliding mask */}
+            {/* Carousel Viewport without dark shadow mask */}
             <div
-              className={`relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300 ${activeIndex > 0 && activeIndex < items.length - 1
-                ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_86%,transparent_100%)]"
-                : activeIndex > 0
-                  ? "lg:[mask-image:linear-gradient(to_right,transparent_0%,black_14%,black_100%)]"
-                  : "lg:[mask-image:linear-gradient(to_right,black_0%,black_86%,transparent_100%)]"
-                }`}
+              className="relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300"
             >
               {/* Sliding Track */}
               <div
@@ -378,7 +373,7 @@ export default function FeaturedInZeflix() {
                       onClick={() => setActiveIndex(index)}
                       className={`relative w-[var(--card-w)] aspect-[2/3] rounded-2xl overflow-hidden shrink-0 cursor-pointer transition-all duration-500 select-none ${isActive
                         ? "border-2 border-emerald-400 scale-100 z-20 brightness-100 shadow-xl shadow-emerald-950/50"
-                        : "border border-white/10 opacity-50 hover:opacity-85 scale-95 z-10 brightness-75 hover:scale-100"
+                        : "border border-white/10 opacity-25 hover:opacity-55 scale-[0.90] z-10 hover:scale-[0.95]"
                         }`}
                     >
                       {item.poster ? (
@@ -395,23 +390,10 @@ export default function FeaturedInZeflix() {
                           No Poster
                         </div>
                       )}
-                      {!isActive && (
-                        <div className="absolute inset-0 bg-black/40 hover:bg-black/10 transition-colors" />
-                      )}
                     </div>
                   );
                 })}
               </div>
-
-              {/* Left Edge Dark Shadow Overlay */}
-              {activeIndex > 0 && (
-                <div className="hidden lg:block absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-black/85 via-black/40 to-transparent z-25 pointer-events-none" />
-              )}
-
-              {/* Right Edge Dark Shadow Overlay */}
-              {activeIndex < items.length - 1 && (
-                <div className="hidden lg:block absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-black/85 via-black/40 to-transparent z-25 pointer-events-none" />
-              )}
 
               {/* Previous Slide Button */}
               {activeIndex > 0 && (

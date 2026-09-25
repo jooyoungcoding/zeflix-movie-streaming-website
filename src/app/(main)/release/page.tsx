@@ -523,8 +523,14 @@ export default function ReleasePage() {
                                                                         className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase font-custom2"
                                                                         style={{
                                                                             backgroundColor: "#000000",
-                                                                            borderColor: "#52525b",
-                                                                            color: "#d4d4d8",
+                                                                            borderColor:
+                                                                                movie.status?.toLowerCase() === "upcoming"
+                                                                                    ? "#059669"
+                                                                                    : "#52525b",
+                                                                            color:
+                                                                                movie.status?.toLowerCase() === "upcoming"
+                                                                                    ? "#34d399"
+                                                                                    : "#d4d4d8",
                                                                             borderWidth: "0.5px",
                                                                             borderStyle: "solid",
                                                                         }}
