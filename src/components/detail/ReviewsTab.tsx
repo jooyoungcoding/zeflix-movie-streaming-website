@@ -14,18 +14,19 @@ export default function ReviewsTab({
   reviews = [],
   averageRating,
 }: ReviewsTabProps) {
-  const [starFilter, setStarFilter] = useState<string>("all");
+  const [selectedRating, setSelectedRating] = useState<number | null>(null);
   const [sortFilter, setSortFilter] = useState<string>("newest");
-  const [isStarOpen, setIsStarOpen] = useState(false);
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState<number>(6);
 
   // Filter & Sort purely based on real API data
   const filteredReviews = useMemo(() => {
     let list = Array.isArray(reviews) ? [...reviews] : [];
-    if (starFilter !== "all") {
-      const minScore = Number(starFilter);
-      list = list.filter((r) => Math.round(r.rating * 2) >= minScore);
+    if (selectedRating !== null) {
+      list = list.filter((r) => {
+        const score10 = Math.min(10, Math.max(1, Math.round(r.rating * 2)));
+        return score10 === selectedRating;
+      });
     }
     if (sortFilter === "highest") {
       list.sort((a, b) => b.rating - a.rating);
@@ -38,7 +39,7 @@ export default function ReviewsTab({
       );
     }
     return list;
-  }, [reviews, starFilter, sortFilter]);
+  }, [reviews, selectedRating, sortFilter]);
 
   const parsed = Number(averageRating);
   const numRating = !isNaN(parsed) ? parsed : 0;
@@ -62,6 +63,7 @@ export default function ReviewsTab({
       const count = counts[idx];
       const height = count > 0 ? `${Math.max(18, Math.round((count / maxCount) * 100))}%` : "6%";
       return {
+        score,
         label: String(score),
         count,
         height,
@@ -90,156 +92,140 @@ export default function ReviewsTab({
               <span>{numRating.toFixed(1)}</span>
             </div>
             <span className="text-[11px] sm:text-xs text-zinc-400 font-normal">
-              {reviews.length} {reviews.length === 1 ? "review" : "reviews"}
+              {filteredReviews.length} {filteredReviews.length === 1 ? "review" : "reviews"}
             </span>
           </div>
 
-          {/* Count Numbers Above Bars */}
-          <div className="flex items-center justify-between text-[10px] text-zinc-500 font-medium px-0.5">
-            {distribution.map((d) => (
-              <span
-                key={d.label}
-                className={`w-4 text-center ${d.hasCount ? "text-zinc-300 font-semibold" : "text-zinc-600"}`}
-              >
-                {d.count}
-              </span>
-            ))}
-          </div>
+          {/* Clickable Histogram Columns (1 - 10) */}
+          <div className="flex items-end justify-between gap-1 py-1">
+            {distribution.map((d) => {
+              const isSelected = selectedRating === d.score;
+              const isAnySelected = selectedRating !== null;
+              const isDimmed = isAnySelected && !isSelected;
 
-          {/* Histogram Bars Container */}
-          <div className="h-20 flex items-end justify-between gap-1 py-1">
-            {distribution.map((d) => (
-              <div
-                key={d.label}
-                className="flex-1 h-full bg-[#0d0f14] rounded-sm flex items-end overflow-hidden"
-              >
-                <div
-                  className={`w-full transition-all duration-500 rounded-t-xs ${
-                    d.hasCount ? "bg-zinc-400" : "bg-zinc-800/40"
-                  }`}
-                  style={{ height: d.height }}
-                />
-              </div>
-            ))}
-          </div>
+              return (
+                <button
+                  key={d.label}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRating((prev) => (prev === d.score ? null : d.score));
+                    setVisibleCount(6);
+                  }}
+                  title={`${d.count} ${d.count === 1 ? "review" : "reviews"} with rating ${d.score}/10`}
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-1 px-0.5 rounded-lg transition-all cursor-pointer group active:scale-95 ${
+                    isSelected ? "" : "hover:bg-white/5"
+                  } ${isDimmed ? "opacity-35 hover:opacity-75" : "opacity-100"}`}
+                >
+                  {/* Count Above Bar */}
+                  <span
+                    className={`text-[10px] leading-none transition-colors ${
+                      isSelected
+                        ? "text-white font-bold"
+                        : d.hasCount
+                          ? "text-zinc-300 font-semibold group-hover:text-white"
+                          : "text-zinc-600"
+                    }`}
+                  >
+                    {d.count}
+                  </span>
 
-          {/* Scale Numbers (1 - 10) Below Bars */}
-          <div className="flex items-center justify-between text-[9px] text-zinc-500 font-medium px-0.5">
-            {distribution.map((d) => (
-              <span
-                key={d.label}
-                className={`w-4 text-center ${d.hasCount ? "text-zinc-300 font-medium" : "text-zinc-600"}`}
-              >
-                {d.label}
-              </span>
-            ))}
+                  {/* Bar */}
+                  <div className="w-full h-20 bg-[#0d0f14] rounded-sm flex items-end overflow-hidden">
+                    <div
+                      className={`w-full transition-all duration-300 rounded-t-xs ${
+                        isSelected
+                          ? "bg-white"
+                          : d.hasCount
+                            ? "bg-zinc-400 group-hover:bg-zinc-200"
+                            : "bg-zinc-800/40"
+                      }`}
+                      style={{ height: d.height }}
+                    />
+                  </div>
+
+                  {/* Scale Number (1 - 10) Below Bar */}
+                  <span
+                    className={`text-[9px] sm:text-[10px] leading-none transition-colors ${
+                      isSelected
+                        ? "text-white font-bold"
+                        : d.hasCount
+                          ? "text-zinc-300 font-medium group-hover:text-white"
+                          : "text-zinc-600"
+                    }`}
+                  >
+                    {d.label}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Reviews Area (Filters + 3-Column Reviews Grid): Bottom on Mobile (order-2), Left Column on Desktop (order-1) */}
+        {/* Reviews Area: Left Column on Desktop (order-1), Bottom on Mobile (order-2) */}
         <div className="order-2 lg:order-1 lg:col-span-8 xl:col-span-9 space-y-6">
-          {/* Top Filter Dropdown Controls */}
-          <div className="flex items-center gap-3">
-            {/* Stars Filter Dropdown */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsStarOpen((prev) => !prev);
-                  setIsSortOpen(false);
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 transition-colors cursor-pointer"
-              >
-                <span>
-                  {starFilter === "all"
-                    ? "All ratings"
-                    : starFilter === "10"
-                      ? "10 rating"
-                      : `${starFilter}+ rating`}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-              </button>
+          {/* Top Filter Controls: Sort Filter */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-3">
+              {/* Sort Filter Dropdown */}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsSortOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 transition-colors cursor-pointer"
+                >
+                  <span>
+                    {sortFilter === "newest"
+                      ? "Newest"
+                      : sortFilter === "highest"
+                        ? "Highest rated"
+                        : "Lowest rated"}
+                  </span>
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${
+                      isSortOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-              {isStarOpen && (
-                <div className="absolute left-0 mt-1.5 w-32 max-h-56 overflow-y-auto bg-[#181a20] rounded-xl shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 border border-white/10 custom-scrollbar">
-                  {[
-                    { label: "All ratings", val: "all" },
-                    { label: "10 rating", val: "10" },
-                    { label: "9+ rating", val: "9" },
-                    { label: "8+ rating", val: "8" },
-                    { label: "7+ rating", val: "7" },
-                    { label: "6+ rating", val: "6" },
-                    { label: "5+ rating", val: "5" },
-                    { label: "4+ rating", val: "4" },
-                    { label: "3+ rating", val: "3" },
-                    { label: "2+ rating", val: "2" },
-                    { label: "1+ rating", val: "1" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.val}
-                      type="button"
-                      onClick={() => {
-                        setStarFilter(opt.val);
-                        setIsStarOpen(false);
-                      }}
-                      className="w-full text-left px-3.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+                {isSortOpen && (
+                  <div className="absolute left-0 mt-1.5 w-36 bg-[#181a20] rounded-xl shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 border border-white/10">
+                    {[
+                      { label: "Newest", val: "newest" },
+                      { label: "Highest rated", val: "highest" },
+                      { label: "Lowest rated", val: "lowest" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.val}
+                        type="button"
+                        onClick={() => {
+                          setSortFilter(opt.val);
+                          setIsSortOpen(false);
+                        }}
+                        className="w-full text-left px-3.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
-            {/* Sort Filter Dropdown */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSortOpen((prev) => !prev);
-                  setIsStarOpen(false);
-                }}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 transition-colors cursor-pointer"
-              >
-                <span>
-                  {sortFilter === "newest"
-                    ? "Newest"
-                    : sortFilter === "highest"
-                      ? "Highest rated"
-                      : "Lowest rated"}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-              </button>
-
-              {isSortOpen && (
-                <div className="absolute left-0 mt-1.5 w-36 bg-[#181a20] rounded-xl shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 border border-white/10">
-                  {[
-                    { label: "Newest", val: "newest" },
-                    { label: "Highest rated", val: "highest" },
-                    { label: "Lowest rated", val: "lowest" },
-                  ].map((opt) => (
-                    <button
-                      key={opt.val}
-                      type="button"
-                      onClick={() => {
-                        setSortFilter(opt.val);
-                        setIsSortOpen(false);
-                      }}
-                      className="w-full text-left px-3.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Review Count Indicator */}
+            <span className="text-xs text-zinc-500 font-medium">
+              Showing {filteredReviews.length} {filteredReviews.length === 1 ? "review" : "reviews"}
+            </span>
           </div>
 
           {/* 3-Column Reviews Grid (Background matching page background, no border) */}
           {filteredReviews.length === 0 ? (
             <div className="py-16 text-center text-zinc-500 text-sm bg-transparent flex flex-col items-center justify-center gap-2.5">
               <MessageSquare className="w-8 h-8 text-zinc-600" />
-              <span className="text-zinc-400 font-medium">No community reviews available for this title yet.</span>
+              <span className="text-zinc-400 font-medium">
+                {selectedRating !== null
+                  ? `No reviews found with rating ${selectedRating}/10.`
+                  : "No community reviews available for this title yet."}
+              </span>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-8">

@@ -33,4 +33,22 @@ export interface PlaybackProvider {
     episodeNumber: number,
     metadata?: Record<string, unknown>
   ): Promise<PlaybackSource | null>;
+
+  /**
+   * Resolve all available movie playback sources in priority order (Source A, Source B, Source C)
+   */
+  getMovieSources?(
+    tmdbId: string,
+    metadata?: Record<string, unknown>
+  ): Promise<PlaybackSource[]>;
+
+  /**
+   * Resolve all available TV episode playback sources in priority order (Source A, Source B, Source C)
+   */
+  getTvEpisodeSources?(
+    tmdbId: string,
+    seasonNumber: number,
+    episodeNumber: number,
+    metadata?: Record<string, unknown>
+  ): Promise<PlaybackSource[]>;
 }

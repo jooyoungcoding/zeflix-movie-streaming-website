@@ -297,7 +297,8 @@ export default function RegisterComponent({
           </button>
         </div>
 
-        {/* OR Divider */}
+        {/* OR Divider & Continue with Google Button (Temporarily commented out during maintenance) */}
+        {/*
         <div className="flex items-center gap-3 py-1">
           <div className="flex-1 h-px bg-white/10" />
           <span
@@ -309,10 +310,10 @@ export default function RegisterComponent({
           <div className="flex-1 h-px bg-white/10" />
         </div>
 
-        {/* Continue with Google Button */}
         <div>
           <GoogleLoginButton />
         </div>
+        */}
 
         {/* Already have an account footer */}
         <div className="pt-2 text-center">

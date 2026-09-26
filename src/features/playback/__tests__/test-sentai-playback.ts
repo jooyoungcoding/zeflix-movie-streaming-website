@@ -1,5 +1,6 @@
 import { TokuFunSource } from "../sources/tokufun.source";
 import { TokuAddonSource } from "../sources/tokuaddon.source";
+import { TokuStreamSource } from "../sources/tokustream.source";
 import { SentaiSource } from "../sources/sentai-source.interface";
 import { SuperSentaiResolver } from "../service/super-sentai.resolver";
 import { SuperSentaiProvider } from "../providers/super-sentai.provider";
@@ -62,9 +63,10 @@ async function runSentaiTests() {
     9,
     "No.1 Sentai Gozyuger"
   );
-  assert(allSources.length === 2, "SuperSentaiResolver resolves both TokuFun and TokuAddon sources");
-  assert(allSources[0].providerId === "tokufun", "1st source in resolver order is TokuFun");
-  assert(allSources[1].providerId === "tokuaddon", "2nd source in resolver order is TokuAddon");
+  assert(allSources.length === 3, "SuperSentaiResolver resolves TokuFun, TokuAddon, and TokuStream sources");
+  assert(allSources[0].providerId === "tokufun", "1st source in resolver order is TokuFun (Source A)");
+  assert(allSources[1].providerId === "tokuaddon", "2nd source in resolver order is TokuAddon (Source B)");
+  assert(allSources[2].providerId === "tokustream", "3rd source in resolver order is TokuStream (Source C)");
 
   // 4. Extensibility Test: custom Sentai source can be added without modifying SuperSentaiProvider
   class MockCustomSource implements SentaiSource {
@@ -90,13 +92,14 @@ async function runSentaiTests() {
   const customResolver = new SuperSentaiResolver([
     new TokuFunSource(),
     new TokuAddonSource(),
+    new TokuStreamSource(),
     new MockCustomSource(),
   ]);
   const customSources = await customResolver.resolveTvEpisodeAllSources("270119", 1, 1);
-  assert(customSources.length === 3, "SuperSentaiResolver cleanly supports registering new sources");
+  assert(customSources.length === 4, "SuperSentaiResolver cleanly supports registering new sources");
   assert(
-    customSources[2].providerId === "custom-sentai-cdn",
-    "Third custom source cleanly resolves in sequence"
+    customSources[3].providerId === "custom-sentai-cdn",
+    "Fourth custom source cleanly resolves in sequence"
   );
 
   // 5. SuperSentaiProvider Tests
@@ -108,8 +111,11 @@ async function runSentaiTests() {
     { title: "Bakuage Sentai Boonboomger" }
   );
   assert(
-    provSources.length === 2 && provSources[0].providerId === "tokufun" && provSources[1].providerId === "tokuaddon",
-    "SuperSentaiProvider delegates to SuperSentaiResolver and returns all sources in order"
+    provSources.length === 3 &&
+      provSources[0].providerId === "tokufun" &&
+      provSources[1].providerId === "tokuaddon" &&
+      provSources[2].providerId === "tokustream",
+    "SuperSentaiProvider delegates to SuperSentaiResolver and returns all sources in order (Source A, B, C)"
   );
 
   // 6. PlaybackService End-to-End Cascade for Super Sentai
@@ -122,11 +128,12 @@ async function runSentaiTests() {
   );
 
   assert(session.mediaInfo.isSuperSentai === true, "PlaybackService detects Super Sentai content");
-  assert(session.sources.length >= 4, "PlaybackService returns full cascade of sources");
-  assert(session.sources[0].providerId === "tokufun", "Source 1 is TokuFun");
-  assert(session.sources[1].providerId === "tokuaddon", "Source 2 is TokuAddon");
-  assert(session.sources[2].providerId === "vidlink", "Source 3 is VidLink (Fallback 1)");
-  assert(session.sources[3].providerId === "superembed", "Source 4 is SuperEmbed (Fallback 2)");
+  assert(session.sources.length >= 5, "PlaybackService returns full cascade of sources");
+  assert(session.sources[0].providerId === "tokufun", "Source 1 is TokuFun (Source A)");
+  assert(session.sources[1].providerId === "tokuaddon", "Source 2 is TokuAddon (Source B)");
+  assert(session.sources[2].providerId === "tokustream", "Source 3 is TokuStream (Source C)");
+  assert(session.sources[3].providerId === "vidlink", "Source 4 is VidLink (Fallback 1)");
+  assert(session.sources[4].providerId === "superembed", "Source 5 is SuperEmbed (Fallback 2)");
 
   // 7. Provider-Independent Watch History Test
   const historyKey = generateMediaProgressKey("tv", "243555", 1, 1);
