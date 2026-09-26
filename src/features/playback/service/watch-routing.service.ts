@@ -57,11 +57,11 @@ export interface BuildWatchUrlParams {
 /**
  * Generates the standardized category-based Watch URL:
  * - Movie Anime: /watch/movie/anime/[id]
- * - TV Anime: /watch/tv/anime/[id]/[episode]
+ * - TV Anime: /watch/tv/anime/[id]/[season]/[episode]
  * - Movie Sentai: /watch/movie/sentai/[id]
- * - TV Sentai: /watch/tv/sentai/[id]/[episode]
+ * - TV Sentai: /watch/tv/sentai/[id]/[season]/[episode]
  * - Normal Movie: /watch/movie/normal/[id]
- * - Normal TV: /watch/tv/normal/[id]/[episode]
+ * - Normal TV: /watch/tv/normal/[id]/[season]/[episode]
  */
 export function buildWatchUrl(params: BuildWatchUrlParams): string {
   const cleanId = String(params.tmdbId || "").trim();
@@ -74,6 +74,10 @@ export function buildWatchUrl(params: BuildWatchUrlParams): string {
   }
 
   const ep = Math.max(1, Math.floor(params.episode || 1));
+  const s = params.season !== undefined ? Math.floor(params.season) : 1;
+  if (s > 1) {
+    return `/watch/tv/${category}/${cleanId}/${s}/${ep}`;
+  }
   return `/watch/tv/${category}/${cleanId}/${ep}`;
 }
 
@@ -83,9 +87,14 @@ export function buildWatchUrl(params: BuildWatchUrlParams): string {
 export function buildNextEpisodeUrl(
   category: WatchCategory,
   tmdbId: string | number,
-  nextEpisode: number
+  nextEpisode: number,
+  season: number = 1
 ): string {
   const cleanId = String(tmdbId || "").trim();
+  const s = Math.max(1, Math.floor(season || 1));
   const ep = Math.max(1, Math.floor(nextEpisode || 1));
+  if (s > 1) {
+    return `/watch/tv/${category}/${cleanId}/${s}/${ep}`;
+  }
   return `/watch/tv/${category}/${cleanId}/${ep}`;
 }

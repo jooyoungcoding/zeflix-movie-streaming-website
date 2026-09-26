@@ -119,14 +119,22 @@ async function runTests() {
   assert(session.mediaInfo.isAnime === true, "Session mediaInfo.isAnime is true");
   assert(
     session.sources[0]?.providerId === "yenime",
-    "Session primary source is Yenime"
+    "Session primary source is Yenime (Source A)"
   );
   assert(
-    session.sources[1]?.providerId === "vidlink",
+    session.sources[1]?.providerId === "yenime",
+    "Session secondary source is Yenime (Source B)"
+  );
+  assert(
+    session.sources[2]?.providerId === "yenime",
+    "Session tertiary source is Yenime (Source C)"
+  );
+  assert(
+    session.sources[3]?.providerId === "vidlink",
     "Session fallback 1 is VidLink"
   );
   assert(
-    session.sources[2]?.providerId === "superembed",
+    session.sources[4]?.providerId === "superembed",
     "Session fallback 2 is SuperEmbed"
   );
 

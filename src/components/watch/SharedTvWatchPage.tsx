@@ -15,16 +15,18 @@ import BackButton from "@/components/BackButton";
 
 interface SharedTvWatchPageProps {
   id: string;
+  season: string;
   episode: string;
   category: WatchCategory;
 }
 
 export default async function SharedTvWatchPage({
   id,
+  season,
   episode,
   category,
 }: SharedTvWatchPageProps) {
-  const sNum = 1;
+  const sNum = parseInt(season, 10) || 1;
   const epNum = parseInt(episode, 10) || 1;
 
   const tv = await getTVSeriesDetailService(id, sNum);
@@ -71,11 +73,16 @@ export default async function SharedTvWatchPage({
 
   if (currentEpIndex !== -1 && currentEpIndex < tv.episodes.length - 1) {
     const nextEp = tv.episodes[currentEpIndex + 1];
-    nextEpisodeUrl = buildNextEpisodeUrl(category, id, nextEp.episodeNumber);
+    nextEpisodeUrl = buildNextEpisodeUrl(
+      category,
+      id,
+      nextEp.episodeNumber,
+      nextEp.seasonNumber ?? sNum
+    );
   } else if (category === "sentai" && (tv.episodes.length === 0 || epNum < 55)) {
-    nextEpisodeUrl = buildNextEpisodeUrl(category, id, epNum + 1);
+    nextEpisodeUrl = buildNextEpisodeUrl(category, id, epNum + 1, sNum);
   } else if (tv.episodes.length > 0 && epNum < tv.episodes.length) {
-    nextEpisodeUrl = buildNextEpisodeUrl(category, id, epNum + 1);
+    nextEpisodeUrl = buildNextEpisodeUrl(category, id, epNum + 1, sNum);
   }
 
   // Resolve video playback session through centralized PlaybackService
@@ -95,9 +102,9 @@ export default async function SharedTvWatchPage({
   );
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col pt-20 sm:pt-24 pb-16">
+    <div className="bg-black text-white pt-16 sm:pt-20 pb-8">
       {/* Main Watch Content Container */}
-      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-4 sm:gap-6">
         {/* Navigation & Series Info Row */}
         <div className="flex items-center justify-between gap-4">
           <BackButton fallbackUrl={`/tv/${id}`} />
@@ -147,7 +154,7 @@ export default async function SharedTvWatchPage({
         {tv.episodes.length > 0 && (
           <div className="w-full pt-2">
             <EpisodesTab
-              key={`${category}-episodes-tab-${id}`}
+              key={`${category}-episodes-tab-${id}-${sNum}`}
               tvId={id}
               category={category}
               seasons={tv.seasons}

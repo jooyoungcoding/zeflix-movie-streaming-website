@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Star, ChevronRight, ChevronLeft, Clapperboard } from "lucide-react";
@@ -25,6 +25,10 @@ export default function PopularOfWeek() {
   const [items, setItems] = useState<PopularContent[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentPage, setCurrentPage] = useState<number>(0);
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const isScrollingToPageRef = useRef<number | null>(null);
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const itemsPerPage = 4;
 
@@ -60,13 +64,74 @@ export default function PopularOfWeek() {
 
   const totalPages = Math.max(1, Math.ceil(items.length / itemsPerPage));
 
+  const scrollToPage = (pageIndex: number) => {
+    if (scrollContainerRef.current) {
+      isScrollingToPageRef.current = pageIndex;
+      setCurrentPage(pageIndex);
+      const width = scrollContainerRef.current.clientWidth;
+      scrollContainerRef.current.scrollTo({
+        left: pageIndex * width,
+        behavior: "smooth",
+      });
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      scrollTimeoutRef.current = setTimeout(() => {
+        isScrollingToPageRef.current = null;
+      }, 500);
+    }
+  };
+
   const handleNext = () => {
-    setCurrentPage((prev) => Math.min(prev + 1, totalPages - 1));
+    if (currentPage < totalPages - 1) {
+      scrollToPage(currentPage + 1);
+    }
   };
 
   const handlePrev = () => {
-    setCurrentPage((prev) => Math.max(prev - 1, 0));
+    if (currentPage > 0) {
+      scrollToPage(currentPage - 1);
+    }
   };
+
+  const handleScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, clientWidth } = scrollContainerRef.current;
+      if (clientWidth > 0) {
+        const calculatedPage = Math.min(
+          totalPages - 1,
+          Math.max(0, Math.round(scrollLeft / clientWidth))
+        );
+        if (isScrollingToPageRef.current !== null) {
+          if (calculatedPage === isScrollingToPageRef.current) {
+            isScrollingToPageRef.current = null;
+          }
+          return;
+        }
+        setCurrentPage((prev) => (prev !== calculatedPage ? calculatedPage : prev));
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (scrollContainerRef.current) {
+        const width = scrollContainerRef.current.clientWidth;
+        scrollContainerRef.current.scrollTo({
+          left: currentPage * width,
+          behavior: "instant" as ScrollBehavior,
+        });
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [currentPage]);
 
   if (!isLoading && items.length === 0) {
     return null;
@@ -83,22 +148,22 @@ export default function PopularOfWeek() {
 
       {/* Paginated 4-Cards Grid Carousel */}
       <div className="relative group/popular">
-        {/* Left Navigation Arrow */}
+        {/* Left Navigation Arrow — desktop only */}
         {currentPage > 0 && (
           <button
             onClick={handlePrev}
-            className="absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
+            className="hidden sm:flex absolute -left-3 sm:-left-5 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
             aria-label="Previous page"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
         )}
 
-        {/* Right Navigation Arrow */}
+        {/* Right Navigation Arrow — desktop only */}
         {currentPage < totalPages - 1 && (
           <button
             onClick={handleNext}
-            className="absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
+            className="hidden sm:flex absolute -right-3 sm:-right-5 top-1/2 -translate-y-1/2 z-30 w-11 h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
             aria-label="Next page"
           >
             <ChevronRight className="w-5 h-5" />
@@ -106,7 +171,12 @@ export default function PopularOfWeek() {
         )}
 
         {/* Carousel Viewport Container */}
-        <div className="overflow-hidden w-full rounded-2xl">
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="w-full overflow-x-auto scrollbar-none snap-x snap-mandatory scroll-smooth rounded-2xl"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
           {isLoading && items.length === 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 px-1">
               {Array.from({ length: itemsPerPage }).map((_, idx) => (
@@ -125,14 +195,11 @@ export default function PopularOfWeek() {
               ))}
             </div>
           ) : (
-            <div
-              className="flex transition-transform duration-500 ease-in-out"
-              style={{ transform: `translateX(-${currentPage * 100}%)` }}
-            >
+            <div className="flex w-full">
               {Array.from({ length: totalPages }).map((_, pageIndex) => (
                 <div
                   key={pageIndex}
-                  className="w-full shrink-0 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 px-1"
+                  className="w-full shrink-0 snap-start snap-always grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6 px-1"
                 >
                   {items
                     .slice(
@@ -220,6 +287,30 @@ export default function PopularOfWeek() {
             </div>
           )}
         </div>
+
+        {/* Mobile Pagination Dots */}
+        {totalPages > 1 && (
+          <div className="flex sm:hidden justify-center items-center mt-5">
+            <div className="flex items-center gap-2 bg-black/40 backdrop-blur-md px-3.5 py-2 rounded-full border border-white/10 shadow-lg">
+              {Array.from({ length: totalPages }).map((_, idx) => {
+                const isActive = currentPage === idx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => scrollToPage(idx)}
+                    className={`transition-all duration-300 rounded-full cursor-pointer ${
+                      isActive
+                        ? "w-6 h-2 bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]"
+                        : "w-2 h-2 bg-white/30 hover:bg-white/60"
+                    }`}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );

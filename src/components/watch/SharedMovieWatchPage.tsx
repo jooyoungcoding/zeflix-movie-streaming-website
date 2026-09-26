@@ -64,9 +64,9 @@ export default async function SharedMovieWatchPage({
   );
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col pt-20 sm:pt-24 pb-16">
+    <div className="bg-black text-white pt-16 sm:pt-20 pb-8">
       {/* Main Watch Content Container */}
-      <div className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-6">
+      <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col gap-4 sm:gap-6">
         {/* Navigation & Movie Info Row */}
         <div className="flex items-center justify-between gap-4">
           <BackButton fallbackUrl={`/movies/${id}`} />

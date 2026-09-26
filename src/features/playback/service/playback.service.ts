@@ -34,15 +34,22 @@ export class PlaybackService {
     // Centralized category validation: do not blindly trust URL category if metadata indicates incompatibility
     let effectiveCategory: WatchCategory | undefined = metadata?.category;
     if (metadata) {
-      const verifiedCategory = determineWatchCategory({
-        tmdbId: cleanId,
-        mediaType: "movie",
-        ...metadata,
-      });
-      if (effectiveCategory && effectiveCategory !== verifiedCategory) {
-        effectiveCategory = verifiedCategory;
-      } else if (!effectiveCategory) {
-        effectiveCategory = verifiedCategory;
+      const hasMetadataIndicators =
+        (Array.isArray(metadata.genres) && metadata.genres.length > 0) ||
+        (Array.isArray(metadata.originCountry) && metadata.originCountry.length > 0) ||
+        (Array.isArray(metadata.productionCountries) && metadata.productionCountries.length > 0);
+
+      if (hasMetadataIndicators) {
+        const verifiedCategory = determineWatchCategory({
+          tmdbId: cleanId,
+          mediaType: "movie",
+          ...metadata,
+        });
+        if (effectiveCategory && effectiveCategory !== verifiedCategory) {
+          effectiveCategory = verifiedCategory;
+        } else if (!effectiveCategory) {
+          effectiveCategory = verifiedCategory;
+        }
       }
     }
 
@@ -126,15 +133,22 @@ export class PlaybackService {
     // Centralized category validation: do not blindly trust URL category if metadata indicates incompatibility
     let effectiveCategory: WatchCategory | undefined = metadata?.category;
     if (metadata) {
-      const verifiedCategory = determineWatchCategory({
-        tmdbId: cleanId,
-        mediaType: "tv",
-        ...metadata,
-      });
-      if (effectiveCategory && effectiveCategory !== verifiedCategory) {
-        effectiveCategory = verifiedCategory;
-      } else if (!effectiveCategory) {
-        effectiveCategory = verifiedCategory;
+      const hasMetadataIndicators =
+        (Array.isArray(metadata.genres) && metadata.genres.length > 0) ||
+        (Array.isArray(metadata.originCountry) && metadata.originCountry.length > 0) ||
+        (Array.isArray(metadata.productionCountries) && metadata.productionCountries.length > 0);
+
+      if (hasMetadataIndicators) {
+        const verifiedCategory = determineWatchCategory({
+          tmdbId: cleanId,
+          mediaType: "tv",
+          ...metadata,
+        });
+        if (effectiveCategory && effectiveCategory !== verifiedCategory) {
+          effectiveCategory = verifiedCategory;
+        } else if (!effectiveCategory) {
+          effectiveCategory = verifiedCategory;
+        }
       }
     }
 

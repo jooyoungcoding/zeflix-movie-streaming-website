@@ -28,6 +28,7 @@ import {
   savePlaybackProgress,
 } from "@/features/playback/service/watch-history.service";
 import { requestPlaybackSession } from "@/features/playback/api/playback.api";
+import { buildNextEpisodeUrl } from "@/features/playback/service/watch-routing.service";
 
 interface VendorFullscreenElement extends HTMLDivElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -131,6 +132,10 @@ export default function VideoPlayer({
   const [allProvidersFailed, setAllProvidersFailed] = useState<boolean>(false);
   const [isStreamReady, setIsStreamReady] = useState<boolean>(false);
 
+  // Controlled iframe src: starts blank to prevent audio before source is confirmed.
+  // Only set to the real URL after a short delay; reset to blank on fallback/source change.
+  const [iframeSrc, setIframeSrc] = useState<string>("about:blank");
+
   // Track prop updates for initialSession
   const [prevInitialSession, setPrevInitialSession] = useState(initialSession);
   if (initialSession !== prevInitialSession) {
@@ -139,6 +144,7 @@ export default function VideoPlayer({
     setSourceIndex(0);
     setAllProvidersFailed(false);
     setIsStreamReady(false);
+    setIframeSrc("about:blank");
     setPlaybackState("INIT");
   }
 
@@ -171,13 +177,13 @@ export default function VideoPlayer({
     setSourceIndex(0);
     setAllProvidersFailed(false);
     setIsStreamReady(false);
+    setIframeSrc("about:blank");
     setPlaybackState("INIT");
     setCurrentTime(0);
   }
 
   // UI Overlays & Timers
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [autoNext, setAutoNext] = useState<boolean>(true);
   const [countdown, setCountdown] = useState<number | null>(null);
 
   // Fullscreen Controls Auto-Hide State
@@ -191,6 +197,10 @@ export default function VideoPlayer({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const stallTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const playbackConfirmedRef = useRef<boolean>(false);
+  const lastCurrentTimeRef = useRef<number>(0);
 
   // If no session passed initially and no initialSource, dynamically fetch it asynchronously
   useEffect(() => {
@@ -201,6 +211,7 @@ export default function VideoPlayer({
         season: type === "tv" ? activeSeason : undefined,
         episode: type === "tv" ? activeEpisode : undefined,
         title,
+        category,
       })
         .then((newSession) => {
           setSession(newSession);
@@ -212,15 +223,20 @@ export default function VideoPlayer({
           setAllProvidersFailed(true);
         });
     }
-  }, [session, effectiveTmdbId, initialSource, type, activeSeason, activeEpisode, title]);
+  }, [session, effectiveTmdbId, initialSource, type, activeSeason, activeEpisode, title, category]);
+
+  // Provider Abstraction: Playback sources received generically from PlaybackService session
+  const playableSources = useMemo(() => {
+    return session?.sources ?? [];
+  }, [session]);
 
   // Current active source in priority sequence
   const currentSource: PlaybackSource | null = useMemo(() => {
-    if (!session || !session.sources || session.sources.length === 0) {
+    if (playableSources.length === 0) {
       return null;
     }
-    return session.sources[sourceIndex] || null;
-  }, [session, sourceIndex]);
+    return playableSources[sourceIndex] || playableSources[0] || null;
+  }, [playableSources, sourceIndex]);
 
   // Periodic watch progress sync
   useEffect(() => {
@@ -236,10 +252,12 @@ export default function VideoPlayer({
   }, [currentTime, duration, effectiveTmdbId, type, activeSeason, activeEpisode]);
 
   /**
-   * Centralized Provider Fallback Transition
+   * Centralized Automatic Provider Fallback Transition
    * Triggered when:
    * 1. Grace period expires without playback confirmation
-   * 2. Fatal player error is reported
+   * 2. Fatal player/media error is reported
+   * 3. Connection timed out before player loaded
+   * 4. Playback stalled indefinitely
    */
   const triggerProviderFallback = useCallback(
     (reason: string) => {
@@ -247,14 +265,25 @@ export default function VideoPlayer({
         clearTimeout(gracePeriodTimerRef.current);
         gracePeriodTimerRef.current = null;
       }
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = null;
+      }
+      if (stallTimeoutRef.current) {
+        clearTimeout(stallTimeoutRef.current);
+        stallTimeoutRef.current = null;
+      }
 
-      const totalSources = session?.sources?.length || 0;
+      playbackConfirmedRef.current = false;
+
+      const totalSources = playableSources.length;
       const nextIndex = sourceIndex + 1;
 
       console.warn(
-        `[VideoPlayer] Provider '${currentSource?.providerName || "unknown"}' failed (${reason}). ` +
+        `[VideoPlayer] Source '${currentSource?.providerName || currentSource?.providerId || "unknown"}' failed (${reason}). ` +
         `Advancing to next fallback (${nextIndex + 1}/${totalSources}).`
       );
+      // Note: nextIndex is the 0-based index of the next source; (nextIndex+1) shows which source we're switching TO
 
       if (nextIndex < totalSources) {
         setSourceIndex(nextIndex);
@@ -267,79 +296,174 @@ export default function VideoPlayer({
         setPlaybackState("PLAYBACK_ERROR");
       }
     },
-    [session, sourceIndex, currentSource]
+    [playableSources, sourceIndex, currentSource]
   );
 
-  // Handle iframe load event
-  const handleIframeLoad = useCallback(() => {
-    setPlaybackState("PLAYER_LOADED");
+  // Fullscreen Controls Auto-Hide Manager with Continuous Movement Probing
+  // Declared before confirmPlayback because confirmPlayback calls it on playback start.
+  const showFullscreenControls = useCallback(() => {
+    setIsFullscreenTopBarVisible(true);
+    setIsWakeSensorActive(false);
+
+    if (controlsTimeoutRef.current) {
+      clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = null;
+    }
+
+    // Auto-hide controls after 3.5s of inactivity, unless mouse is hovering over top bar
+    if (!isMouseOverTopBarRef.current) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        if (isMouseOverTopBarRef.current) return;
+        // Hide controls — sensor (z-[999998]) becomes pointer-events-auto to catch next movement
+        setIsFullscreenTopBarVisible(false);
+        setIsWakeSensorActive(true);
+        try { window.focus(); } catch { }
+      }, 3500);
+    }
+  }, []);
+
+  /**
+   * Playback Health Confirmation:
+   * Confirms that video has actually started rendering and advancing time.
+   * Also re-shows fullscreen controls so the user can interact with the new
+   * episode — critical on mobile where touch events into the iframe don't
+   * bubble to window, making the wake sensor unable to detect taps.
+   */
+  const confirmPlayback = useCallback(() => {
+    if (playbackConfirmedRef.current) return;
+    playbackConfirmedRef.current = true;
 
     if (gracePeriodTimerRef.current) {
       clearTimeout(gracePeriodTimerRef.current);
       gracePeriodTimerRef.current = null;
     }
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+    if (stallTimeoutRef.current) {
+      clearTimeout(stallTimeoutRef.current);
+      stallTimeoutRef.current = null;
+    }
 
-    const isVidLink = currentSource?.providerId === "vidlink";
-    if (!isVidLink) {
-      // For third-party embedded providers, allow a 2.5s buffer so any splash / loading messages finish
-      setTimeout(() => {
-        setIsStreamReady(true);
-        setPlaybackState("PLAYING");
-      }, 2500);
+    setIsStreamReady(true);
+    setPlaybackState("PLAYING");
+
+    // Re-show fullscreen controls when new episode starts playing.
+    // Without this, controls stay hidden after an episode switch because:
+    // the iframe steals touch events on mobile, so window touchstart
+    // never fires and the wake sensor can't bring controls back.
+    showFullscreenControls();
+  }, [showFullscreenControls]);
+
+  // Handle iframe load event
+  const handleIframeLoad = useCallback(() => {
+    // Ignore load events from the silent placeholder page (about:blank).
+    // The real load event will fire once the actual source URL is set.
+    if (!iframeRef.current || iframeRef.current.src === "about:blank") return;
+
+    setPlaybackState("PLAYER_LOADED");
+
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+      connectionTimeoutRef.current = null;
+    }
+
+    // Providers that embed a webpage player but do NOT send postMessage events.
+    // For these, auto-confirm playback once the iframe has loaded successfully,
+    // after a short buffer for the player UI to initialize.
+    //
+    // Auto-confirm providers (webpage embeds, no postMessage):
+    //   - vidlink, superembed: main embed players
+    //   - tokufun, tokuaddon, tokustream: webpage-based Sentai embed players
+    //
+    // Requires postMessage confirmation:
+    //   - yenime: anime player that may send postMessage events
+    const providerId = currentSource?.providerId || "";
+    const isAutoConfirmProvider =
+      providerId === "vidlink" ||
+      providerId === "superembed" ||
+      providerId === "tokufun" ||
+      providerId === "tokuaddon" ||
+      providerId === "tokustream" ||
+      (!providerId && !currentSource?.providerName);
+
+    if (isAutoConfirmProvider) {
+      // Short buffer for player UI to render before we mark playback as confirmed
+      gracePeriodTimerRef.current = setTimeout(() => {
+        if (!playbackConfirmedRef.current) {
+          confirmPlayback();
+        }
+      }, 3000);
       return;
     }
 
-    // For VidLink: keep our system loading overlay active while VidLink fetches data.
-    // When VidLink data is ready, it emits MEDIA_DATA or ready, which sets isStreamReady(true).
-    // As a safe fallback if postMessage is blocked, reveal after 3.5s (longer than VidLink's internal splash)
-    const fallbackTimer = setTimeout(() => {
-      setIsStreamReady(true);
-      setPlaybackState((prev) => (prev === "PLAYER_LOADING" || prev === "INIT" ? "PLAYING" : prev));
-    }, 3500);
+    // For specialized providers: wait for actual postMessage confirmation
+    // Grace period extended to 20s for slow-loading providers
+    if (gracePeriodTimerRef.current) {
+      clearTimeout(gracePeriodTimerRef.current);
+    }
 
-    // VidLink grace period for failure fallback
     gracePeriodTimerRef.current = setTimeout(() => {
-      clearTimeout(fallbackTimer);
-      setPlaybackState((current) => {
-        if (current === "PLAYER_LOADED" || current === "PLAYER_LOADING") {
-          triggerProviderFallback("VidLink stream did not start within grace period timeout");
-          return "PLAYBACK_STALLED";
-        }
-        return current;
-      });
-    }, 12000);
-  }, [triggerProviderFallback, currentSource]);
+      if (!playbackConfirmedRef.current) {
+        triggerProviderFallback("Playback did not start within grace period timeout");
+      }
+    }, 20000);
+  }, [triggerProviderFallback, confirmPlayback, currentSource]);
 
-  // Source change effect: reset states and start grace period
+  // Source change effect: reset states and initiate initial connection monitoring
   useEffect(() => {
     if (!currentSource) return;
 
-    setIsStreamReady(false);
-    const startTimer = setTimeout(() => {
-      setPlaybackState("PLAYER_LOADING");
-    }, 0);
+    playbackConfirmedRef.current = false;
+    lastCurrentTimeRef.current = 0;
 
-    // Initial connection timeout: if stream source stays loading indefinitely without loading
-    const connectionTimeout = setTimeout(() => {
-      setPlaybackState((current) => {
-        if (current === "PLAYER_LOADING" || current === "INIT") {
-          triggerProviderFallback("Connection timed out before player loaded");
-          return "PLAYBACK_STALLED";
-        }
-        return current;
-      });
-    }, 12000);
+    // Immediately silence the iframe by resetting src to blank.
+    // This prevents audio bleed-through from the previous (failing) source
+    // while the new source is being loaded.
+    setIframeSrc("about:blank");
+    setIsStreamReady(false);
+    setPlaybackState("PLAYER_LOADING");
+
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
+    }
+    if (gracePeriodTimerRef.current) {
+      clearTimeout(gracePeriodTimerRef.current);
+    }
+    if (stallTimeoutRef.current) {
+      clearTimeout(stallTimeoutRef.current);
+    }
+
+    // Short delay before setting the real src so the blank page has time to render
+    // (prevents the new source from starting audio before overlay is shown)
+    const srcRevealTimer = setTimeout(() => {
+      setIframeSrc(currentSource.url);
+    }, 150);
+
+    // Initial connection timeout: if stream source fails to connect / load before timeout
+    // 25s gives enough time for slow-loading third-party embed providers
+    connectionTimeoutRef.current = setTimeout(() => {
+      if (!playbackConfirmedRef.current) {
+        triggerProviderFallback("Connection timed out before player loaded");
+      }
+    }, 25000);
 
     return () => {
-      clearTimeout(startTimer);
-      clearTimeout(connectionTimeout);
+      clearTimeout(srcRevealTimer);
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+      }
       if (gracePeriodTimerRef.current) {
         clearTimeout(gracePeriodTimerRef.current);
+      }
+      if (stallTimeoutRef.current) {
+        clearTimeout(stallTimeoutRef.current);
       }
     };
   }, [currentSource, triggerProviderFallback]);
 
-  // Listen for VidLink and embedded provider events via window.postMessage
+  // Listen for playback events via window.postMessage to verify actual playback health
   useEffect(() => {
     const handleWindowMessage = (event: MessageEvent) => {
       let rawData = event.data;
@@ -351,61 +475,79 @@ export default function VideoPlayer({
         }
       }
 
-      const eventName =
+      const eventName = (
         typeof rawData === "string"
           ? rawData
-          : rawData?.event || rawData?.type || rawData?.action || "";
+          : rawData?.event || rawData?.type || rawData?.action || ""
+      ).toLowerCase();
 
-      // Any message from the player signals active user interaction: show controls
+      // Show fullscreen controls ONLY for explicit user-interaction events.
+      // DO NOT call showFullscreenControls() for passive playback state events
+      // like timeupdate/progress — these fire every ~1s during playback and would
+      // constantly reset the auto-hide timer, keeping controls permanently visible.
       if (isFullscreen) {
-        showFullscreenControls();
+        const isUserInteractionEvent =
+          eventName === "play" ||
+          eventName === "playing" ||
+          eventName === "player_play" ||
+          eventName === "pause" ||
+          eventName === "player_pause" ||
+          eventName === "seek" ||
+          eventName === "seeked" ||
+          eventName === "player_seek" ||
+          eventName === "click" ||
+          eventName === "fullscreen" ||
+          eventName === "fullscreen_change" ||
+          eventName === "ended" ||
+          eventName === "media_ended" ||
+          eventName === "player_ended" ||
+          eventName === "error" ||
+          eventName === "player_error";
+
+        if (isUserInteractionEvent) {
+          showFullscreenControls();
+        }
       }
 
       // 1. Play event: Actual playback confirmed
       if (
         eventName === "play" ||
         eventName === "playing" ||
-        eventName === "PLAYER_PLAY"
+        eventName === "player_play" ||
+        eventName === "playback_started" ||
+        eventName === "video_playing"
       ) {
-        if (gracePeriodTimerRef.current) {
-          clearTimeout(gracePeriodTimerRef.current);
-          gracePeriodTimerRef.current = null;
-        }
-        setIsStreamReady(true);
-        setPlaybackState("PLAYING");
+        confirmPlayback();
       }
 
       // 2. Pause event
-      if (eventName === "pause" || eventName === "PLAYER_PAUSE") {
-        setIsStreamReady(true);
+      if (eventName === "pause" || eventName === "player_pause") {
+        confirmPlayback();
         setPlaybackState("PAUSED");
       }
 
-      // 3. Time Update & Media Data
+      // 3. Time Update & Media Progress
       if (
         eventName === "timeupdate" ||
-        eventName === "timeUpdate" ||
-        eventName === "MEDIA_DATA" ||
-        eventName === "PLAYER_LOADED" ||
+        eventName === "media_data" ||
+        eventName === "player_loaded" ||
         eventName === "ready" ||
-        eventName === "canplay"
+        eventName === "canplay" ||
+        eventName === "video:progress"
       ) {
-        if (gracePeriodTimerRef.current) {
-          clearTimeout(gracePeriodTimerRef.current);
-          gracePeriodTimerRef.current = null;
-        }
-
-        setIsStreamReady(true);
-        if (playbackState !== "PLAYING") {
-          setPlaybackState("PLAYING");
-        }
-
         const cur = rawData?.currentTime ?? rawData?.data?.currentTime;
         const dur = rawData?.duration ?? rawData?.data?.duration;
 
         if (typeof cur === "number" && !isNaN(cur)) {
           setCurrentTime(cur);
+          if (cur > 0 || cur > lastCurrentTimeRef.current) {
+            confirmPlayback();
+            lastCurrentTimeRef.current = cur;
+          }
+        } else if (eventName === "canplay" || eventName === "ready") {
+          confirmPlayback();
         }
+
         if (typeof dur === "number" && !isNaN(dur) && dur > 0) {
           setDuration(dur);
         }
@@ -414,22 +556,32 @@ export default function VideoPlayer({
       // 4. Video Ended
       if (
         eventName === "ended" ||
-        eventName === "MEDIA_ENDED" ||
-        eventName === "PLAYER_ENDED"
+        eventName === "media_ended" ||
+        eventName === "player_ended"
       ) {
         setPlaybackState("ENDED");
-        if (type === "tv" && autoNext) {
-          setCountdown(10);
-        }
       }
 
       // 5. Fatal Playback Error from provider
       if (
         eventName === "error" ||
-        eventName === "PLAYER_ERROR" ||
-        eventName === "MEDIA_ERROR"
+        eventName === "player_error" ||
+        eventName === "media_error" ||
+        eventName === "video_error" ||
+        eventName === "media_unavailable" ||
+        eventName === "cant_play" ||
+        eventName === "playback_error"
       ) {
         triggerProviderFallback("Explicit error event reported by player");
+      }
+
+      // 6. Stalled playback monitoring
+      if (eventName === "stalled" || eventName === "waiting") {
+        if (!stallTimeoutRef.current && playbackConfirmedRef.current) {
+          stallTimeoutRef.current = setTimeout(() => {
+            triggerProviderFallback("Playback stalled indefinitely");
+          }, 8000);
+        }
       }
     };
 
@@ -437,55 +589,28 @@ export default function VideoPlayer({
     return () => {
       window.removeEventListener("message", handleWindowMessage);
     };
-  }, [type, autoNext, playbackState, triggerProviderFallback]);
-
-  // Fullscreen Controls Auto-Hide Manager with Continuous Movement Probing
-  const showFullscreenControls = useCallback(() => {
-    setIsFullscreenTopBarVisible(true);
-    setIsWakeSensorActive(false);
-
-    if (controlsTimeoutRef.current) {
-      clearTimeout(controlsTimeoutRef.current);
-      controlsTimeoutRef.current = null;
-    }
-
-    // Only schedule auto-hide if mouse is not hovering over the top bar
-    if (!isMouseOverTopBarRef.current) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        if (isMouseOverTopBarRef.current) return;
-
-        // Step 1: Temporarily activate the full-screen sensor for 220ms while controls remain visible.
-        // If the user's cursor is actively moving anywhere across the screen, onMouseMove fires immediately.
-        setIsWakeSensorActive(true);
-
-        controlsTimeoutRef.current = setTimeout(() => {
-          if (!isMouseOverTopBarRef.current) {
-            // No mouse movement occurred during probe: fade out controls
-            setIsFullscreenTopBarVisible(false);
-            setIsWakeSensorActive(true); // Keep full-screen sensor covering screen to catch next move/tap
-            try {
-              window.focus();
-            } catch { }
-          }
-        }, 220);
-      }, 3200);
-    }
-  }, []);
+  }, [type, isFullscreen, showFullscreenControls, confirmPlayback, triggerProviderFallback]);
 
   // Fullscreen Activity Listeners (Mouse move, Touch, Window blur / Iframe clicks)
   useEffect(() => {
     if (!isFullscreen) {
-      setIsFullscreenTopBarVisible(true);
-      setIsWakeSensorActive(false);
+      const resetBarTimer = setTimeout(() => {
+        setIsFullscreenTopBarVisible(true);
+        setIsWakeSensorActive(false);
+      }, 0);
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
         controlsTimeoutRef.current = null;
       }
-      return;
+      return () => {
+        clearTimeout(resetBarTimer);
+      };
     }
 
     // Immediately show controls when entering fullscreen
-    showFullscreenControls();
+    const enterFullscreenTimer = setTimeout(() => {
+      showFullscreenControls();
+    }, 0);
 
     const handleActivity = () => {
       showFullscreenControls();
@@ -504,6 +629,7 @@ export default function VideoPlayer({
     window.addEventListener("blur", handleWindowBlur);
 
     return () => {
+      clearTimeout(enterFullscreenTimer);
       window.removeEventListener("mousemove", handleActivity);
       window.removeEventListener("pointermove", handleActivity);
       window.removeEventListener("touchstart", handleActivity);
@@ -556,10 +682,27 @@ export default function VideoPlayer({
         doc.webkitFullscreenElement ||
         doc.mozFullScreenElement ||
         doc.msFullscreenElement;
-      const isNowFull = !!fullElem;
-      setIsFullscreen(isNowFull);
-      if (isNowFull) {
+
+      const ourContainer = containerRef.current;
+
+      if (!fullElem) {
+        // Nothing is fullscreen — exit our custom fullscreen
+        setIsFullscreen(false);
+        return;
+      }
+
+      // Something is fullscreen. Only update our state if it's directly our container.
+      if (ourContainer && fullElem === ourContainer) {
+        // Our container is the fullscreen element — entering our custom fullscreen
+        setIsFullscreen(true);
         showFullscreenControls();
+      } else if (ourContainer && ourContainer.contains(fullElem)) {
+        // The embedded iframe went fullscreen natively (e.g. VidLink's own fullscreen button).
+        // Sync our state so the auxiliary bar button correctly shows "Exit Fullscreen".
+        setIsFullscreen(true);
+      } else {
+        // Something unrelated to our player is fullscreen
+        setIsFullscreen(false);
       }
     };
 
@@ -652,6 +795,11 @@ export default function VideoPlayer({
       setCurrentTime(0);
       setDuration(0);
 
+      // Show fullscreen controls immediately while the new episode loads.
+      // This gives mobile users visual feedback that the switch happened
+      // and ensures controls are accessible during the loading state.
+      showFullscreenControls();
+
       window.dispatchEvent(
         new CustomEvent("zeflix:episode-changed", {
           detail: { season: newSeason, episode: newEpisode },
@@ -666,7 +814,12 @@ export default function VideoPlayer({
           : path.includes("/sentai/")
           ? "sentai"
           : "normal");
-      const newUrl = `/watch/tv/${effectiveCategory}/${effectiveTmdbId}/${newEpisode}`;
+      const newUrl = buildNextEpisodeUrl(
+        effectiveCategory,
+        effectiveTmdbId,
+        newEpisode,
+        newSeason
+      );
 
       window.history.replaceState(null, "", newUrl);
 
@@ -686,8 +839,35 @@ export default function VideoPlayer({
         setAllProvidersFailed(true);
       }
     },
-    [effectiveTmdbId, title, category]
+    [effectiveTmdbId, title, category, showFullscreenControls]
   );
+
+  // Retry playback resolution when error occurs
+  const handleRetry = useCallback(async () => {
+    setAllProvidersFailed(false);
+    setSourceIndex(0);
+    setIsStreamReady(false);
+    setPlaybackState("PLAYER_LOADING");
+    playbackConfirmedRef.current = false;
+    lastCurrentTimeRef.current = 0;
+
+    if (effectiveTmdbId) {
+      try {
+        const freshSession = await requestPlaybackSession({
+          type,
+          tmdbId: effectiveTmdbId,
+          season: type === "tv" ? activeSeason : undefined,
+          episode: type === "tv" ? activeEpisode : undefined,
+          title,
+          category,
+        });
+        setSession(freshSession);
+      } catch (err) {
+        console.error("[VideoPlayer] Retry resolution failed:", err);
+        setAllProvidersFailed(true);
+      }
+    }
+  }, [effectiveTmdbId, type, activeSeason, activeEpisode, title, category]);
 
   // Listen for remote episode switch events (e.g. from EpisodesTab)
   useEffect(() => {
@@ -741,17 +921,21 @@ export default function VideoPlayer({
       {/* Outer Video Player Shell */}
       <div
         ref={containerRef}
+        data-playback-state={playbackState}
         className={`group/player relative w-full bg-black shadow-2xl overflow-hidden ${isFullscreen
           ? `fixed inset-0 z-[99999] w-screen h-screen flex items-center justify-center rounded-none ${isFullscreenTopBarVisible ? "cursor-default" : "cursor-none"}`
           : "aspect-video rounded-2xl"
           }`}
       >
         {/* Stream Iframe Player - Clean embedded player */}
+        {/* iframeSrc is controlled: starts as about:blank (silent) and is set to the real URL
+            after a short delay. On fallback, it's immediately reset to blank to cut audio.
+            The key is tied to the source URL so the iframe remounts on source change. */}
         {currentSource && !allProvidersFailed && (
           <iframe
             ref={iframeRef}
             key={`${currentSource.providerId}-${currentSource.url}`}
-            src={currentSource.url}
+            src={iframeSrc}
             title={formattedMediaInfoText}
             className="w-full h-full border-0 absolute inset-0 z-10"
             allow="accelerometer *; autoplay *; clipboard-write; encrypted-media *; gyroscope *; picture-in-picture *; web-share *; fullscreen *"
@@ -787,9 +971,13 @@ export default function VideoPlayer({
 
         {/* Error Overlay: 1 single clean line of text without any icon or custom font */}
         {allProvidersFailed && (
-          <div className="absolute inset-0 z-40 bg-[#06080c] flex items-center justify-center p-6 text-center animate-in fade-in">
+          <div
+            onClick={handleRetry}
+            className="absolute inset-0 z-40 bg-[#06080c] flex items-center justify-center p-6 text-center animate-in fade-in cursor-pointer"
+            title="Click to retry"
+          >
             <p className="text-white text-sm sm:text-base font-normal">
-              We can&apos;t play this video
+              We couldn&apos;t play this video right now. Please try again later.
             </p>
           </div>
         )}
@@ -832,10 +1020,17 @@ export default function VideoPlayer({
         {/* ========================================================================= */}
         {isFullscreen && (
           <>
-            {/* Full-screen interaction sensor: covers entire screen when controls are hidden to detect mouse movement anywhere or mobile taps */}
+            {/* Full-screen interaction sensor:
+              - Active (pointer-events-auto) ONLY when controls are fully hidden, to catch
+                the next mouse move / tap and bring controls back.
+              - During probe (isWakeSensorActive while controls still visible): sensor must
+                NOT intercept pointer events so clicks reach actual buttons (Minimize, Next).
+              - Cursor is hidden only when controls are hidden so user can see where to click
+                while controls are visible.
+            */}
             <div
               className={`fixed inset-0 z-[999998] transition-opacity duration-200 ${
-                !isFullscreenTopBarVisible || isWakeSensorActive
+                !isFullscreenTopBarVisible
                   ? "pointer-events-auto cursor-none bg-transparent"
                   : "pointer-events-none"
               }`}
@@ -908,52 +1103,23 @@ export default function VideoPlayer({
         )}
       </div>
 
-      {/* Auxiliary bar below video player: Auto Next Toggle & Dedicated Fullscreen Trigger */}
-      <div className="flex items-center justify-end gap-2.5 pt-1">
-        {type === "tv" && hasNextEpisode(nextTarget) && (
+      {/* Auxiliary bar below video player: Dedicated Fullscreen Trigger */}
+      {/* Hidden in fullscreen — the top bar overlay already provides Minimize button */}
+      {!isFullscreen && (
+        <div className="flex items-center justify-end gap-2.5 pt-1">
+
+          {/* Fullscreen Button below player */}
           <button
             type="button"
-            onClick={() => setAutoNext((prev) => !prev)}
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
-              autoNext
-                ? "bg-sky-500/15 border-sky-400 text-sky-300 hover:bg-sky-500/25"
-                : "bg-[#161a23] border-zinc-800 text-zinc-400 hover:text-white"
-            }`}
-            title="Auto play next episode when video ends"
+            onClick={toggleFullscreen}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161a23] border border-zinc-800 hover:border-zinc-600 text-zinc-300 hover:text-white text-xs font-semibold transition cursor-pointer"
+            title="Fullscreen (F)"
           >
-            <span
-              className={`w-2 h-2 rounded-full transition-colors ${
-                autoNext ? "bg-sky-400" : "bg-zinc-600"
-              }`}
-            />
-            <span>Auto Next</span>
+            <Maximize className="w-3.5 h-3.5 text-white" />
+            <span>Fullscreen</span>
           </button>
-        )}
-
-        {/* Fullscreen Button below player */}
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#161a23] border border-zinc-800 hover:border-zinc-600 text-zinc-300 hover:text-white text-xs font-semibold transition cursor-pointer"
-          title={isFullscreen ? "Exit Fullscreen (Esc / F)" : "Fullscreen (F)"}
-        >
-          {isFullscreen ? (
-            <>
-              <Minimize className="w-3.5 h-3.5 text-white" />
-              <span>Exit Fullscreen</span>
-            </>
-          ) : (
-            <>
-              <Maximize className="w-3.5 h-3.5 text-white" />
-              <span>Fullscreen</span>
-            </>
-          )}
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
-}
-
-function hasNextEpisode(target: { season: number; episode: number } | null): boolean {
-  return target !== null;
 }

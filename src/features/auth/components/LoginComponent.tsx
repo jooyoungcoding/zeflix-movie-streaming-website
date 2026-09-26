@@ -234,31 +234,31 @@ export default function LoginComponent({
         </div>
 
         {/* Forgot Password Link */}
-        <div className="pt-0.5 text-center">
+        {/* <div className="pt-0.5 text-center">
           <Link
             href="/forgot-password"
             className="text-xs sm:text-[13px] font-semibold text-emerald-400 hover:text-emerald-300 font-custom2 hover:underline transition-colors"
           >
             Forgot password
           </Link>
-        </div>
+        </div> */}
 
         {/* Submit Button */}
         <div className="pt-1">
           <button
             type="submit"
             disabled={!isFormValid || isLoading}
-            className={`font-custom1 w-full py-3 sm:py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-200 ${
-              isFormValid && !isLoading
+            className={`font-custom1 w-full py-3 sm:py-3.5 rounded-xl font-bold text-sm tracking-wide transition-all duration-200 ${isFormValid && !isLoading
                 ? "bg-[#489d6e] hover:bg-[#3b875d] active:scale-[0.98] text-white shadow-lg shadow-emerald-950/40 cursor-pointer"
                 : "bg-[#181c26] text-zinc-500 border border-white/5 cursor-not-allowed select-none opacity-60 shadow-none"
-            }`}
+              }`}
           >
             {isLoading ? "Logging in..." : "Login"}
           </button>
         </div>
 
-        {/* OR Divider */}
+        {/* OR Divider & Continue with Google Button (Temporarily commented out during maintenance) */}
+        {/*
         <div className="flex items-center gap-3 py-1">
           <div className="flex-1 h-px bg-white/10" />
           <span
@@ -270,10 +270,10 @@ export default function LoginComponent({
           <div className="flex-1 h-px bg-white/10" />
         </div>
 
-        {/* Continue with Google Button */}
         <div>
           <GoogleLoginButton />
         </div>
+        */}
 
         {/* Don't have an account footer */}
         <div className="pt-2 text-center">

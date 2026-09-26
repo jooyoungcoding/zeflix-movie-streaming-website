@@ -359,7 +359,7 @@ export default function SearchContent() {
                   </>
                 ) : (
                   <>
-                    <span>Show more</span>
+                    <span>More</span>
                     <ChevronDown className="w-4 h-4 text-zinc-400" />
                   </>
                 )}

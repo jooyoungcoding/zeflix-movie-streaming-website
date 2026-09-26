@@ -2,37 +2,33 @@ import { SentaiSource } from "./sentai-source.interface";
 import { PlaybackSource } from "../types/playback.types";
 
 /**
- * TokuAddonSource
- * Dedicated source adapter for TokuAddon Tokusatsu streaming.
+ * TokuStreamSource (Source C)
+ * Dedicated source adapter for TokuStream / alternate Tokusatsu streaming mirror.
  * Follows the SentaiSource interface and returns normalized PlaybackSource.
- *
- * NOTE: Uses embeddable player URLs (not Stremio JSON API endpoints).
  */
-export class TokuAddonSource implements SentaiSource {
-  readonly id = "tokuaddon";
-  readonly name = "TokuAddon";
+export class TokuStreamSource implements SentaiSource {
+  readonly id = "tokustream";
+  readonly name = "TokuStream";
   private readonly baseUrl: string;
 
   constructor(
-    baseUrl: string = process.env.TOKUADDON_STREAM_URL || "https://www.tokusub.net"
+    baseUrl: string = process.env.TOKUSTREAM_URL || "https://tokustream.ovh"
   ) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
   }
 
   /**
-   * Resolve movie playback source for TokuAddon
+   * Resolve movie playback source for TokuStream (Source C)
    */
   async resolveMovie(
     tmdbId: string,
-    _title?: string,
+    title?: string,
     _metadata?: Record<string, unknown>
   ): Promise<PlaybackSource | null> {
-    void _title;
     void _metadata;
     const cleanId = this.sanitizeTmdbId(tmdbId);
     if (!cleanId) return null;
 
-    // TokuAddon embeddable movie page format
     const url = `${this.baseUrl}/movie/${cleanId}`;
 
     return {
@@ -42,24 +38,25 @@ export class TokuAddonSource implements SentaiSource {
       providerName: this.name,
       customData: {
         source: this.id,
+        sourceTag: "Source C",
         franchise: "Super Sentai",
         language: "en",
         tmdbId: cleanId,
+        title: title || "",
       },
     };
   }
 
   /**
-   * Resolve TV episode playback source for TokuAddon
+   * Resolve TV episode playback source for TokuStream (Source C)
    */
   async resolveEpisode(
     tmdbId: string,
     season: number,
     episode: number,
-    _title?: string,
+    title?: string,
     _metadata?: Record<string, unknown>
   ): Promise<PlaybackSource | null> {
-    void _title;
     void _metadata;
     const cleanId = this.sanitizeTmdbId(tmdbId);
     if (!cleanId) return null;
@@ -67,7 +64,6 @@ export class TokuAddonSource implements SentaiSource {
     const s = Math.max(1, Math.floor(season || 1));
     const ep = Math.max(1, Math.floor(episode || 1));
 
-    // TokuAddon embeddable TV episode page format
     const url = `${this.baseUrl}/tv/${cleanId}/${s}/${ep}`;
 
     return {
@@ -77,11 +73,13 @@ export class TokuAddonSource implements SentaiSource {
       providerName: this.name,
       customData: {
         source: this.id,
+        sourceTag: "Source C",
         franchise: "Super Sentai",
         language: "en",
         tmdbId: cleanId,
         season: s,
         episode: ep,
+        title: title || "",
       },
     };
   }
