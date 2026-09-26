@@ -292,7 +292,8 @@ export default function Header() {
             <Search className="w-5 h-5 stroke-[2.2] transition-transform duration-200 hover:scale-110" />
           </Link>
 
-          {/* Notifications Bell */}
+          {/* Notifications Bell (Temporarily commented out) */}
+          {/*
           <div className="relative" ref={notificationsMenuRef}>
             <button
               type="button"
@@ -310,7 +311,6 @@ export default function Header() {
               )}
             </button>
 
-            {/* Notifications Dropdown */}
             <div
               className={`absolute right-0 top-[calc(100%+12px)] w-80 max-w-[calc(100vw-32px)] backdrop-blur-2xl border rounded-2xl shadow-2xl py-3 z-50 transition-all duration-200 origin-top-right select-none font-custom2 bg-[#191b22]/95 border-white/10 shadow-black/80 text-white ${
                 isNotificationsOpen
@@ -380,6 +380,7 @@ export default function Header() {
               </div>
             </div>
           </div>
+          */}
 
           {/* Login or User Avatar with Profile Dropdown */}
           {user_id ? (
@@ -448,6 +449,8 @@ export default function Header() {
 
                 {/* Menu Options */}
                 <div className="px-2 py-1.5 flex flex-col gap-0.5">
+                  {/* View Profile (Temporarily commented out) */}
+                  {/*
                   <Link
                     href="/profile"
                     onClick={() => setIsProfileOpen(false)}
@@ -456,6 +459,7 @@ export default function Header() {
                     <SquarePen className="w-5 h-5 transition-colors shrink-0 stroke-[2] text-zinc-400 group-hover:text-white" />
                     <span>View Profile</span>
                   </Link>
+                  */}
 
                   <Link
                     href="/watchlist"
@@ -476,6 +480,8 @@ export default function Header() {
                   </Link>
 
 
+                  {/* Settings (Temporarily commented out) */}
+                  {/*
                   <Link
                     href="/settings"
                     onClick={() => setIsProfileOpen(false)}
@@ -484,6 +490,7 @@ export default function Header() {
                     <Settings className="w-5 h-5 transition-colors shrink-0 stroke-[2] text-zinc-400 group-hover:text-white" />
                     <span>Settings</span>
                   </Link>
+                  */}
                 </div>
 
                 {/* Logout Button */}
@@ -615,6 +622,8 @@ export default function Header() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-2">
+                  {/* Edit account / View Profile (Temporarily commented out) */}
+                  {/*
                   <Link
                     href="/profile"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -623,6 +632,7 @@ export default function Header() {
                     <SquarePen className="w-4 h-4 text-zinc-400" />
                     <span>Edit account</span>
                   </Link>
+                  */}
                   <Link
                     href="/watchlist"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -639,6 +649,8 @@ export default function Header() {
                     <History className="w-4 h-4 text-zinc-400" />
                     <span>History</span>
                   </Link>
+                  {/* Settings (Temporarily commented out) */}
+                  {/*
                   <Link
                     href="/settings"
                     onClick={() => setIsMobileMenuOpen(false)}
@@ -647,6 +659,7 @@ export default function Header() {
                     <Settings className="w-4 h-4 text-zinc-400" />
                     <span>Settings</span>
                   </Link>
+                  */}
                 </div>
 
                 <button

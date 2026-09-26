@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
@@ -28,6 +28,7 @@ import {
   determineWatchCategory,
   buildWatchUrl,
 } from "@/features/playback/service/watch-routing.service";
+import { getDisplayCountry } from "@/libs/country";
 
 interface TVSeriesDetailViewProps {
   tv: TVSeriesDetail;
@@ -39,6 +40,16 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
   const [isTrailerOpen, setIsTrailerOpen] = useState<boolean>(false);
   const [isWatchlist, setIsWatchlist] = useState<boolean>(false);
   const [isToggling, setIsToggling] = useState<boolean>(false);
+
+  const countryDisplay = useMemo(
+    () =>
+      getDisplayCountry({
+        originCountry: tv.originCountry,
+        productionCountries: tv.productionCountries,
+        originalLanguage: tv.originalLanguage,
+      }),
+    [tv.originCountry, tv.productionCountries, tv.originalLanguage]
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -236,6 +247,13 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                   <>
                     <span className="text-zinc-600">•</span>
                     <span>{tv.duration}</span>
+                  </>
+                )}
+
+                {countryDisplay && (
+                  <>
+                    <span className="text-zinc-600">•</span>
+                    <span>{countryDisplay}</span>
                   </>
                 )}
 

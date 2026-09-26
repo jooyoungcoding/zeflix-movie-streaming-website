@@ -18,10 +18,18 @@ export default function BackButton({
   const router = useRouter();
 
   const handleBack = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push(fallbackUrl);
+    if (typeof window !== "undefined") {
+      // In Next.js App Router, history.state.idx > 0 indicates there is a previous page in the app session
+      const hasPreviousInApp =
+        typeof window.history.state?.idx === "number"
+          ? window.history.state.idx > 0
+          : window.history.length > 1;
+
+      if (hasPreviousInApp) {
+        router.back();
+      } else {
+        router.push(fallbackUrl);
+      }
     }
   };
 

@@ -1,6 +1,7 @@
 import { SentaiSource } from "../sources/sentai-source.interface";
 import { TokuFunSource } from "../sources/tokufun.source";
 import { TokuAddonSource } from "../sources/tokuaddon.source";
+import { TokuStreamSource } from "../sources/tokustream.source";
 import { PlaybackSource } from "../types/playback.types";
 import { isSuperSentaiSeries } from "./super-sentai.detector";
 
@@ -19,7 +20,10 @@ export interface SentaiContentQuery {
  * 1. TMDB movie/TV information matching
  * 2. Title matching
  * 3. Season and episode matching
- * 4. Source matching across available Sentai sources (TokuFun, TokuAddon)
+ * 4. Source matching across available Sentai sources:
+ *    - Source A: TokuFun
+ *    - Source B: TokuAddon
+ *    - Source C: TokuStream
  * 5. Normalizing source results into standard PlaybackSource format
  *
  * Designed for extensibility: new sources can be added to the sources list
@@ -33,7 +37,7 @@ export class SuperSentaiResolver {
   ) {
     this.sources = sources && sources.length > 0
       ? sources
-      : [new TokuFunSource(), new TokuAddonSource()];
+      : [new TokuFunSource(), new TokuAddonSource(), new TokuStreamSource()];
   }
 
   /**

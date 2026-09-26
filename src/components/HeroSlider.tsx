@@ -89,7 +89,7 @@ export default function HeroSlider() {
 
     timerRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % movies.length);
-    }, 4500);
+    }, 5500);
 
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);

@@ -200,29 +200,29 @@ export default function BrowseByCountry() {
           <div className="hidden md:block pointer-events-none absolute left-0 top-0 bottom-0 w-24 lg:w-36 bg-gradient-to-r from-black via-black/80 to-transparent z-20 transition-opacity duration-300" />
         )}
 
-        {/* Left Scroll Arrow */}
+        {/* Left Scroll Arrow — desktop only; mobile uses native touch swipe */}
         {canScrollLeft && (
           <button
             type="button"
             onClick={() => handleScroll("left")}
-            className="absolute left-1.5 sm:left-3 lg:left-4 top-1/2 -translate-y-1/2 z-30 w-9 sm:w-11 h-9 sm:h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
+            className="hidden sm:flex absolute left-1.5 sm:left-3 lg:left-4 top-1/2 -translate-y-1/2 z-30 w-9 sm:w-11 h-9 sm:h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
             aria-label="Scroll left"
           >
             <ChevronLeft className="w-4 sm:w-5 h-4 sm:h-5" />
           </button>
         )}
 
-        {/* Right Dark Shadow Fade */}
+        {/* Right Dark Shadow Fade — desktop only */}
         {canScrollRight && (
-          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-20 sm:w-32 lg:w-48 bg-gradient-to-l from-black via-black/85 to-transparent z-20 transition-opacity duration-300" />
+          <div className="hidden sm:block pointer-events-none absolute right-0 top-0 bottom-0 w-20 sm:w-32 lg:w-48 bg-gradient-to-l from-black via-black/85 to-transparent z-20 transition-opacity duration-300" />
         )}
 
-        {/* Right Scroll Arrow */}
+        {/* Right Scroll Arrow — desktop only; mobile uses native touch swipe */}
         {canScrollRight && (
           <button
             type="button"
             onClick={() => handleScroll("right")}
-            className="absolute right-1.5 sm:right-3 lg:right-4 top-1/2 -translate-y-1/2 z-30 w-9 sm:w-11 h-9 sm:h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white flex items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
+            className="hidden sm:flex absolute right-1.5 sm:right-3 lg:right-4 top-1/2 -translate-y-1/2 z-30 w-9 sm:w-11 h-9 sm:h-11 rounded-full bg-[#1c202a]/95 hover:bg-black backdrop-blur-md border border-white/20 text-white items-center justify-center transition-all duration-300 shadow-2xl hover:scale-110 active:scale-95 cursor-pointer animate-in fade-in zoom-in-75 duration-200"
             aria-label="Scroll right"
           >
             <ChevronRight className="w-4 sm:w-5 h-4 sm:h-5" />
@@ -253,8 +253,8 @@ export default function BrowseByCountry() {
           <div
             ref={scrollContainerRef}
             onScroll={checkScrollPosition}
-            className="flex items-start gap-4 sm:gap-5 overflow-x-auto scrollbar-none pb-2 scroll-smooth snap-x px-1 min-h-[220px]"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+            className="flex items-start gap-4 sm:gap-5 overflow-x-auto scrollbar-none pb-2 scroll-smooth snap-x snap-mandatory px-1 min-h-[220px]"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none", touchAction: "pan-x" }}
           >
             {items.map((item) => {
               const href =
