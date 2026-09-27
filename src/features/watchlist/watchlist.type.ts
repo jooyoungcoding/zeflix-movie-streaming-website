@@ -58,6 +58,8 @@ export interface WatchlistItemDto {
     vote_average: number;
     release_date: string | null;
     overview: string | null;
+    genres?: string[];
+    season?: string;
   };
 }
 

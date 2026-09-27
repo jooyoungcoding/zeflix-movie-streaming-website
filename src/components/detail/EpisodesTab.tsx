@@ -230,7 +230,9 @@ export default function EpisodesTab({
       return;
 
     const activeIdx = episodes.findIndex(
-      (e) => Number(e.episodeNumber) === Number(activeEpisode)
+      (e) =>
+        Number(e.episodeNumber) === Number(activeEpisode) ||
+        Number(e.displayEpisodeNumber) === Number(activeEpisode)
     );
     if (activeIdx < 0) return;
 
@@ -512,7 +514,8 @@ export default function EpisodesTab({
                   activeSeason !== undefined &&
                   activeEpisode !== undefined &&
                   Number(selectedSeason) === Number(activeSeason) &&
-                  Number(ep.episodeNumber) === Number(activeEpisode);
+                  (Number(ep.episodeNumber) === Number(activeEpisode) ||
+                    Number(ep.displayEpisodeNumber) === Number(activeEpisode));
 
                 return (
                   <div

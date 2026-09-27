@@ -98,6 +98,13 @@ export default async function SharedMovieWatchPage({
               : 2024
           }
           poster={movie.backdrop || movie.poster}
+          historyMeta={{
+            posterPath: movie.poster,
+            backdropPath: movie.backdrop,
+            releaseDate: movie.releaseDate || movie.year || null,
+            voteAverage: movie.rating ? parseFloat(movie.rating) : undefined,
+            overview: movie.description || null,
+          }}
         />
       </div>
     </div>

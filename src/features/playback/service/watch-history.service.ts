@@ -50,8 +50,8 @@ export function getSavedProgress(
     const raw = localStorage.getItem(key);
     if (!raw) return 0;
     const data = JSON.parse(raw) as WatchProgressData;
-    // If completed or progress is within the last 10 seconds of duration, start over
-    if (data.completed || (data.duration_seconds > 0 && data.duration_seconds - data.progress_seconds < 15)) {
+    // If completed or progress is within 180 seconds of duration, consider completed and start over
+    if (data.completed || (data.duration_seconds > 0 && data.duration_seconds - data.progress_seconds <= 180)) {
       return 0;
     }
     return Math.max(0, data.progress_seconds || 0);
@@ -74,7 +74,7 @@ export function savePlaybackProgress(
   if (typeof window === "undefined" || !tmdbId) return;
   try {
     const key = generateMediaProgressKey(type, tmdbId, season, episode);
-    const isCompleted = durationSeconds > 0 && progressSeconds >= durationSeconds * 0.92;
+    const isCompleted = durationSeconds > 0 && durationSeconds - progressSeconds <= 180;
 
     const data: WatchProgressData = {
       mediaKey: key,
@@ -93,3 +93,51 @@ export function savePlaybackProgress(
     // Storage quota or parsing error ignored gracefully
   }
 }
+
+/**
+ * Remove saved playback progress from localStorage for a given media
+ */
+export function clearSavedProgress(
+  type: "movie" | "tv",
+  tmdbId: string | number
+): void {
+  if (typeof window === "undefined" || !tmdbId) return;
+  try {
+    const idStr = String(tmdbId);
+    if (type === "movie") {
+      localStorage.removeItem(generateMediaProgressKey("movie", idStr));
+    } else {
+      const prefix = `${STORAGE_PREFIX}tv_${idStr}`;
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(prefix)) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    }
+  } catch {
+    // Ignore errors
+  }
+}
+
+/**
+ * Remove all saved playback progress from localStorage
+ */
+export function clearAllSavedProgress(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(STORAGE_PREFIX)) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach((k) => localStorage.removeItem(k));
+  } catch {
+    // Ignore errors
+  }
+}
+

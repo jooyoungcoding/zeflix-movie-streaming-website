@@ -11,9 +11,7 @@ import Image from "next/image";
 import {
   Maximize,
   Minimize,
-  FastForward,
   SkipForward,
-  X,
 } from "lucide-react";
 import CircularHeartbeatLoader from "./CircularHeartbeatLoader";
 import {
@@ -29,6 +27,11 @@ import {
 } from "@/features/playback/service/watch-history.service";
 import { requestPlaybackSession } from "@/features/playback/api/playback.api";
 import { buildNextEpisodeUrl } from "@/features/playback/service/watch-routing.service";
+import {
+  requestUpsertProgress,
+  requestGetProgress,
+} from "@/features/watch-history/api/watch-history.api";
+import { useAuthStore } from "@/store/auth.store";
 
 interface VendorFullscreenElement extends HTMLDivElement {
   webkitRequestFullscreen?: () => Promise<void> | void;
@@ -63,6 +66,25 @@ interface VideoPlayerProps {
   currentEpisode?: number;
   seasons?: SeasonItem[];
   episodes?: EpisodeItem[];
+  // History metadata — optional, passed from watch pages for Supabase persistence
+  historyMeta?: {
+    posterPath?: string | null;
+    backdropPath?: string | null;
+    releaseDate?: string | null;
+    voteAverage?: number;
+    overview?: string | null;
+    // TV-specific
+    tvName?: string;
+    tvPosterPath?: string | null;
+    tvBackdropPath?: string | null;
+    tvFirstAirDate?: string | null;
+    tvVoteAverage?: number;
+    tvOverview?: string | null;
+    episodeName?: string;
+    episodeStillPath?: string | null;
+    episodeAirDate?: string | null;
+    episodeRuntime?: number | null;
+  };
 }
 
 type PlaybackLifecycle =
@@ -74,6 +96,22 @@ type PlaybackLifecycle =
   | "PLAYBACK_STALLED"
   | "PLAYBACK_ERROR"
   | "ENDED";
+
+/**
+ * Append startAt parameter for third-party embeds (VidLink, etc.)
+ */
+function buildSourceUrlWithStartAt(rawUrl: string, startSeconds: number): string {
+  if (!rawUrl || startSeconds <= 0) return rawUrl;
+  try {
+    const urlObj = new URL(rawUrl);
+    // VidLink and standard embed players use startAt parameter in seconds
+    urlObj.searchParams.set("startAt", String(Math.floor(startSeconds)));
+    return urlObj.toString();
+  } catch {
+    const sep = rawUrl.includes("?") ? "&" : "?";
+    return `${rawUrl}${sep}startAt=${Math.floor(startSeconds)}`;
+  }
+}
 
 export default function VideoPlayer({
   playbackSession: initialSession,
@@ -93,7 +131,10 @@ export default function VideoPlayer({
   currentEpisode,
   seasons,
   episodes,
+  historyMeta,
 }: VideoPlayerProps) {
+  // Auth state — used to determine if Supabase history should be persisted
+  const userId = useAuthStore((s) => s.user_id);
   // Target media ID
   const effectiveTmdbId = useMemo(() => {
     const clean = (v?: string) => (v && v.trim().length > 0 ? v.trim() : undefined);
@@ -158,15 +199,49 @@ export default function VideoPlayer({
   const [prevTargetSeason, setPrevTargetSeason] = useState<number>(targetSeason);
   const [prevTargetEpisode, setPrevTargetEpisode] = useState<number>(targetEpisode);
 
-  // Playback Progress States initialized from saved history
+  // Refs for tracking initial resume seek
+  const initialResumeTimeRef = useRef<number>(0);
+  const initialResumePendingRef = useRef<boolean>(false);
+
+  // Playback Progress States initialized from saved history or URL query parameter (?start=...)
   const [currentTime, setCurrentTime] = useState<number>(() => {
+    let urlStart = 0;
+    if (typeof window !== "undefined") {
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        urlStart = parseInt(sp.get("start") || sp.get("t") || "0", 10);
+        if (isNaN(urlStart) || urlStart < 0) urlStart = 0;
+      } catch {}
+    }
     const clean = (tmdbId || tvId || movieId || "").trim();
-    if (!clean) return 0;
+    if (!clean) {
+      if (urlStart > 5) {
+        initialResumeTimeRef.current = urlStart;
+        initialResumePendingRef.current = true;
+      }
+      return urlStart;
+    }
     const s = currentSeason ?? season ?? 1;
     const ep = currentEpisode ?? episode ?? 1;
-    return getSavedProgress(type, clean, type === "tv" ? s : undefined, type === "tv" ? ep : undefined);
+    const local = getSavedProgress(type, clean, type === "tv" ? s : undefined, type === "tv" ? ep : undefined);
+    const best = Math.max(urlStart, local);
+    if (best > 5) {
+      initialResumeTimeRef.current = best;
+      initialResumePendingRef.current = true;
+    }
+    return best;
   });
   const [duration, setDuration] = useState<number>(0);
+
+  // Safety timeout: ensure initialResumePendingRef doesn't permanently block if embed doesn't seek
+  useEffect(() => {
+    if (initialResumePendingRef.current) {
+      const timer = setTimeout(() => {
+        initialResumePendingRef.current = false;
+      }, 8000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Sync active season and episode when props change via route navigation
   if (targetSeason !== prevTargetSeason || targetEpisode !== prevTargetEpisode) {
@@ -180,11 +255,12 @@ export default function VideoPlayer({
     setIframeSrc("about:blank");
     setPlaybackState("INIT");
     setCurrentTime(0);
+    initialResumeTimeRef.current = 0;
+    initialResumePendingRef.current = false;
   }
 
   // UI Overlays & Timers
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
-  const [countdown, setCountdown] = useState<number | null>(null);
 
   // Fullscreen Controls Auto-Hide State
   const [isFullscreenTopBarVisible, setIsFullscreenTopBarVisible] = useState<boolean>(true);
@@ -195,7 +271,6 @@ export default function VideoPlayer({
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const countdownTimerRef = useRef<NodeJS.Timeout | null>(null);
   const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
   const connectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const stallTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -238,7 +313,201 @@ export default function VideoPlayer({
     return playableSources[sourceIndex] || playableSources[0] || null;
   }, [playableSources, sourceIndex]);
 
-  // Periodic watch progress sync
+  // ─── Supabase Watch History Integration ───
+  // Throttled progress persistence: saves to Supabase every 10 seconds,
+  // plus immediately on pause/ended/episode-switch/unmount.
+  // localStorage remains the fast cache (saved on every currentTime change).
+
+  const lastSupabaseSaveRef = useRef<number>(0);
+  const lastSavedProgressRef = useRef<number>(-1);
+  const lastSavedCompletedRef = useRef<boolean | null>(null);
+  const supabaseSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const seekDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const currentTimeRef = useRef<number>(0);
+  const durationRef = useRef<number>(0);
+  const activeSeasonRef = useRef<number>(activeSeason);
+  const activeEpisodeRef = useRef<number>(activeEpisode);
+  const nextTargetRef = useRef<{ season: number; episode: number } | null>(null);
+
+  // Keep refs in sync
+  currentTimeRef.current = currentTime;
+  durationRef.current = duration;
+  activeSeasonRef.current = activeSeason;
+  activeEpisodeRef.current = activeEpisode;
+
+  /**
+   * Save progress to Supabase. Non-blocking — failures don't interrupt playback.
+   */
+  const saveToSupabase = useCallback(
+    (forceCompleted?: boolean) => {
+      if (!userId || !effectiveTmdbId) return;
+      const ct = currentTimeRef.current;
+      const dur = durationRef.current;
+      if (ct <= 0 && !forceCompleted) return;
+
+      const COMPLETION_THRESHOLD = 180;
+      let completed = forceCompleted || false;
+      let progressToSave = Math.floor(ct);
+
+      if (dur > 0 && dur - ct <= COMPLETION_THRESHOLD) {
+        completed = true;
+        progressToSave = Math.floor(dur);
+      }
+
+      // Avoid redundant database writes if the position hasn't changed meaningfully
+      // and completion state is identical (unless forceCompleted is explicitly requested)
+      if (
+        !forceCompleted &&
+        Math.abs(progressToSave - lastSavedProgressRef.current) < 2 &&
+        completed === lastSavedCompletedRef.current
+      ) {
+        return;
+      }
+
+      const tmdbIdNum = parseInt(effectiveTmdbId, 10);
+      if (isNaN(tmdbIdNum) || tmdbIdNum <= 0) return;
+
+      lastSavedProgressRef.current = progressToSave;
+      lastSavedCompletedRef.current = completed;
+      lastSupabaseSaveRef.current = Date.now();
+
+      if (type === "movie") {
+        requestUpsertProgress({
+          type: "movie",
+          tmdb_id: tmdbIdNum,
+          progress_seconds: progressToSave,
+          duration_seconds: Math.floor(dur),
+          completed,
+          title: title || "",
+          poster_path: historyMeta?.posterPath,
+          backdrop_path: historyMeta?.backdropPath,
+          vote_average: historyMeta?.voteAverage,
+          release_date: historyMeta?.releaseDate,
+          overview: historyMeta?.overview,
+        });
+      } else {
+        requestUpsertProgress({
+          type: "tv",
+          tmdb_id: tmdbIdNum,
+          tv_tmdb_id: tmdbIdNum,
+          tv_name: historyMeta?.tvName || title || "",
+          tv_poster_path: historyMeta?.tvPosterPath,
+          tv_backdrop_path: historyMeta?.tvBackdropPath,
+          tv_first_air_date: historyMeta?.tvFirstAirDate,
+          tv_vote_average: historyMeta?.tvVoteAverage,
+          tv_overview: historyMeta?.tvOverview,
+          season_number: activeSeasonRef.current,
+          episode_number: activeEpisodeRef.current,
+          episode_name: historyMeta?.episodeName,
+          episode_still_path: historyMeta?.episodeStillPath,
+          episode_air_date: historyMeta?.episodeAirDate,
+          episode_runtime: historyMeta?.episodeRuntime,
+          progress_seconds: progressToSave,
+          duration_seconds: Math.floor(dur),
+          completed,
+        });
+      }
+
+      lastSupabaseSaveRef.current = Date.now();
+    },
+    [userId, effectiveTmdbId, type, title, historyMeta]
+  );
+
+  // Periodic Supabase save: every 10 seconds during active playback
+  useEffect(() => {
+    if (!userId || !effectiveTmdbId) return;
+
+    supabaseSaveIntervalRef.current = setInterval(() => {
+      if (currentTimeRef.current > 0) {
+        saveToSupabase();
+      }
+    }, 10000);
+
+    return () => {
+      if (supabaseSaveIntervalRef.current) {
+        clearInterval(supabaseSaveIntervalRef.current);
+        supabaseSaveIntervalRef.current = null;
+      }
+      if (seekDebounceTimerRef.current) {
+        clearTimeout(seekDebounceTimerRef.current);
+        seekDebounceTimerRef.current = null;
+      }
+    };
+  }, [userId, effectiveTmdbId, saveToSupabase]);
+
+  // Save to Supabase immediately on exit / navigation / page unload
+  useEffect(() => {
+    const handleLeave = () => {
+      if (seekDebounceTimerRef.current) {
+        clearTimeout(seekDebounceTimerRef.current);
+        seekDebounceTimerRef.current = null;
+      }
+      if (userId && effectiveTmdbId && currentTimeRef.current > 0) {
+        saveToSupabase();
+      }
+    };
+
+    window.addEventListener("pagehide", handleLeave);
+    window.addEventListener("beforeunload", handleLeave);
+
+    return () => {
+      window.removeEventListener("pagehide", handleLeave);
+      window.removeEventListener("beforeunload", handleLeave);
+      handleLeave();
+    };
+  }, [userId, effectiveTmdbId, saveToSupabase]);
+
+  // Load initial progress from Supabase API for authenticated users
+  useEffect(() => {
+    if (!userId || !effectiveTmdbId) return;
+    const tmdbIdNum = parseInt(effectiveTmdbId, 10);
+    if (isNaN(tmdbIdNum) || tmdbIdNum <= 0) return;
+
+    const s = currentSeason ?? season ?? 1;
+    const ep = currentEpisode ?? episode ?? 1;
+
+    requestGetProgress(
+      type,
+      tmdbIdNum,
+      type === "tv" ? s : undefined,
+      type === "tv" ? ep : undefined
+    ).then((res) => {
+      if (res.success && res.data && !res.data.completed && res.data.progress_seconds > 0) {
+        const serverProgress = res.data.progress_seconds;
+        setCurrentTime(serverProgress);
+        currentTimeRef.current = serverProgress;
+        lastCurrentTimeRef.current = serverProgress;
+        if (serverProgress > 5) {
+          initialResumeTimeRef.current = serverProgress;
+          initialResumePendingRef.current = true;
+        }
+
+        savePlaybackProgress(
+          type,
+          effectiveTmdbId,
+          serverProgress,
+          res.data.duration_seconds || 0,
+          type === "tv" ? s : undefined,
+          type === "tv" ? ep : undefined
+        );
+
+        // If the current iframe has no startAt or loaded without startAt, inject it now
+        if (currentSource && serverProgress > 5) {
+          setIframeSrc((prevSrc) => {
+            if (prevSrc && prevSrc !== "about:blank" && !prevSrc.includes("startAt")) {
+              return buildSourceUrlWithStartAt(currentSource.url, serverProgress);
+            }
+            return prevSrc;
+          });
+        }
+      }
+    }).catch(() => {
+      // Silently fail — localStorage fallback already loaded
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSource]);
+
+  // localStorage cache: still save on every currentTime change (fast local cache)
   useEffect(() => {
     if (!effectiveTmdbId || currentTime <= 0) return;
     savePlaybackProgress(
@@ -438,7 +707,8 @@ export default function VideoPlayer({
     // Short delay before setting the real src so the blank page has time to render
     // (prevents the new source from starting audio before overlay is shown)
     const srcRevealTimer = setTimeout(() => {
-      setIframeSrc(currentSource.url);
+      const startSec = currentTimeRef.current || initialResumeTimeRef.current;
+      setIframeSrc(buildSourceUrlWithStartAt(currentSource.url, startSec));
     }, 150);
 
     // Initial connection timeout: if stream source fails to connect / load before timeout
@@ -475,10 +745,38 @@ export default function VideoPlayer({
         }
       }
 
+      // Unwrap nested event payload:
+      // VidLink sends: { type: "PLAYER_EVENT", data: { event: "timeupdate" | "play" | "pause" | "seeked" | "ended", currentTime, duration, ... } }
+      // Other players may send: { event: "...", data: { ... } } or { payload: { ... } }
+      let innerPayload: any = rawData;
+      if (rawData && typeof rawData === "object") {
+        if (
+          (rawData.type === "PLAYER_EVENT" || rawData.event === "PLAYER_EVENT") &&
+          rawData.data &&
+          typeof rawData.data === "object"
+        ) {
+          innerPayload = rawData.data;
+        } else if (rawData.payload && typeof rawData.payload === "object") {
+          innerPayload = rawData.payload;
+        } else if (
+          rawData.data &&
+          typeof rawData.data === "object" &&
+          (rawData.data.currentTime !== undefined || rawData.data.event !== undefined)
+        ) {
+          innerPayload = rawData.data;
+        }
+      }
+
       const eventName = (
         typeof rawData === "string"
           ? rawData
-          : rawData?.event || rawData?.type || rawData?.action || ""
+          : innerPayload?.event ||
+            innerPayload?.type ||
+            innerPayload?.action ||
+            rawData?.event ||
+            rawData?.type ||
+            rawData?.action ||
+            ""
       ).toLowerCase();
 
       // Show fullscreen controls ONLY for explicit user-interaction events.
@@ -524,31 +822,106 @@ export default function VideoPlayer({
       if (eventName === "pause" || eventName === "player_pause") {
         confirmPlayback();
         setPlaybackState("PAUSED");
+        // Clear pending seek debounce and save immediately on pause
+        if (seekDebounceTimerRef.current) {
+          clearTimeout(seekDebounceTimerRef.current);
+          seekDebounceTimerRef.current = null;
+        }
+        saveToSupabase();
       }
 
-      // 3. Time Update & Media Progress
-      if (
+      // 3. Time Update, Seek & Media Progress
+      const isExplicitSeek =
+        eventName === "seek" ||
+        eventName === "seeked" ||
+        eventName === "seeking" ||
+        eventName === "player_seek" ||
+        eventName === "player_seeked";
+
+      const isTimeUpdate =
         eventName === "timeupdate" ||
         eventName === "media_data" ||
         eventName === "player_loaded" ||
         eventName === "ready" ||
         eventName === "canplay" ||
-        eventName === "video:progress"
-      ) {
-        const cur = rawData?.currentTime ?? rawData?.data?.currentTime;
-        const dur = rawData?.duration ?? rawData?.data?.duration;
+        eventName === "video:progress" ||
+        isExplicitSeek;
+
+      if (isTimeUpdate) {
+        const cur =
+          innerPayload?.currentTime ??
+          innerPayload?.current_time ??
+          innerPayload?.time ??
+          innerPayload?.progress ??
+          innerPayload?.data?.currentTime ??
+          rawData?.currentTime ??
+          rawData?.data?.currentTime ??
+          rawData?.progress ??
+          rawData?.data?.progress;
+
+        const dur =
+          innerPayload?.duration ??
+          innerPayload?.totalDuration ??
+          innerPayload?.total_duration ??
+          innerPayload?.data?.duration ??
+          rawData?.duration ??
+          rawData?.data?.duration;
 
         if (typeof cur === "number" && !isNaN(cur)) {
+          // If we are waiting for player to seek to resume position, ignore early 0s updates
+          if (initialResumePendingRef.current && initialResumeTimeRef.current > 10) {
+            if (cur < initialResumeTimeRef.current - 5) {
+              // Still buffering / initializing before reaching startAt position, skip
+              return;
+            } else {
+              // Reached saved position
+              initialResumePendingRef.current = false;
+            }
+          }
+
+          const prevTime = currentTimeRef.current;
+          currentTimeRef.current = cur;
           setCurrentTime(cur);
+
           if (cur > 0 || cur > lastCurrentTimeRef.current) {
             confirmPlayback();
             lastCurrentTimeRef.current = cur;
+          }
+
+          // Detect Seek:
+          // Explicit seek event OR significant jump (forward > 4s or backward < -1.5s) when playback was active
+          const timeDelta = cur - prevTime;
+          const isJump = prevTime > 0 && (timeDelta < -1.5 || timeDelta > 4);
+          const isUserSeek = isExplicitSeek || isJump;
+
+          // Immediate local cache update on seek or progress
+          if (effectiveTmdbId) {
+            savePlaybackProgress(
+              type,
+              effectiveTmdbId,
+              cur,
+              dur || durationRef.current,
+              type === "tv" ? activeSeasonRef.current : undefined,
+              type === "tv" ? activeEpisodeRef.current : undefined
+            );
+          }
+
+          // If seek occurred, debounce Supabase save (800ms) to ensure scrubbing settles,
+          // then saves latest position without flooding requests.
+          if (isUserSeek) {
+            if (seekDebounceTimerRef.current) {
+              clearTimeout(seekDebounceTimerRef.current);
+            }
+            seekDebounceTimerRef.current = setTimeout(() => {
+              saveToSupabase();
+            }, 800);
           }
         } else if (eventName === "canplay" || eventName === "ready") {
           confirmPlayback();
         }
 
         if (typeof dur === "number" && !isNaN(dur) && dur > 0) {
+          durationRef.current = dur;
           setDuration(dur);
         }
       }
@@ -560,6 +933,12 @@ export default function VideoPlayer({
         eventName === "player_ended"
       ) {
         setPlaybackState("ENDED");
+        if (seekDebounceTimerRef.current) {
+          clearTimeout(seekDebounceTimerRef.current);
+          seekDebounceTimerRef.current = null;
+        }
+        // Immediate save on ended — marks completed (Phase 21)
+        saveToSupabase(true);
       }
 
       // 5. Fatal Playback Error from provider
@@ -589,7 +968,7 @@ export default function VideoPlayer({
     return () => {
       window.removeEventListener("message", handleWindowMessage);
     };
-  }, [type, isFullscreen, showFullscreenControls, confirmPlayback, triggerProviderFallback]);
+  }, [type, isFullscreen, showFullscreenControls, confirmPlayback, triggerProviderFallback, saveToSupabase]);
 
   // Fullscreen Activity Listeners (Mouse move, Touch, Window blur / Iframe clicks)
   useEffect(() => {
@@ -735,60 +1114,127 @@ export default function VideoPlayer({
     };
   }, [toggleFullscreen, showFullscreenControls]);
 
-  // Calculate Next Episode Target
-  const nextTarget = useMemo((): { season: number; episode: number } | null => {
-    if (type !== "tv") return null;
-
-    if (seasons && seasons.length > 0) {
-      const currentSeasonObj = seasons.find(
-        (item) => Number(item.seasonNumber) === Number(activeSeason)
-      );
-      const maxEpisodes =
-        currentSeasonObj?.episodeCount || episodes?.length || 0;
-
-      if (activeEpisode < maxEpisodes) {
-        return { season: activeSeason, episode: activeEpisode + 1 };
+  // Helper to compute continuous display episode number across seasons
+  const getDisplayEpisodeNumber = useCallback(
+    (targetSeason: number, targetEpisode: number): number => {
+      // 1. Try to find in episodes array directly if passed
+      if (episodes && episodes.length > 0) {
+        const found = episodes.find(
+          (e) =>
+            Number(e.seasonNumber) === Number(targetSeason) &&
+            Number(e.episodeNumber) === Number(targetEpisode)
+        );
+        if (found?.displayEpisodeNumber) {
+          return found.displayEpisodeNumber;
+        }
       }
 
-      const nextSeasonObj = seasons.find(
-        (item) => Number(item.seasonNumber) === Number(activeSeason) + 1
-      );
-      if (nextSeasonObj && nextSeasonObj.episodeCount > 0) {
-        return { season: activeSeason + 1, episode: 1 };
+      // 2. Compute offset from seasons list
+      if (seasons && seasons.length > 0) {
+        const validSeasons = seasons
+          .filter(
+            (s) =>
+              Number(s.seasonNumber) > 0 &&
+              Number(s.seasonNumber) < Number(targetSeason)
+          )
+          .sort((a, b) => Number(a.seasonNumber) - Number(b.seasonNumber));
+        const offset = validSeasons.reduce(
+          (acc, s) => acc + (Number(s.episodeCount) || 0),
+          0
+        );
+        return offset + targetEpisode;
+      }
+
+      return targetEpisode;
+    },
+    [episodes, seasons]
+  );
+
+  // Calculate Next Episode Target
+  const nextTarget = useMemo(
+    (): { season: number; episode: number; displayEpisode: number } | null => {
+      if (type !== "tv") return null;
+
+      if (seasons && seasons.length > 0) {
+        const currentSeasonObj = seasons.find(
+          (item) => Number(item.seasonNumber) === Number(activeSeason)
+        );
+        const maxEpisodes =
+          currentSeasonObj?.episodeCount || episodes?.length || 0;
+
+        if (activeEpisode < maxEpisodes) {
+          const nextEp = activeEpisode + 1;
+          return {
+            season: activeSeason,
+            episode: nextEp,
+            displayEpisode: getDisplayEpisodeNumber(activeSeason, nextEp),
+          };
+        }
+
+        const nextSeasonObj = seasons.find(
+          (item) => Number(item.seasonNumber) === Number(activeSeason) + 1
+        );
+        if (nextSeasonObj && nextSeasonObj.episodeCount > 0) {
+          return {
+            season: activeSeason + 1,
+            episode: 1,
+            displayEpisode: getDisplayEpisodeNumber(activeSeason + 1, 1),
+          };
+        }
+        return null;
+      }
+
+      if (nextEpisodeUrl) {
+        // Handles /watch/tv/[category]/[id]/[season]/[episode] or legacy URL
+        const seasonEpMatch =
+          nextEpisodeUrl.match(
+            /\/watch\/tv\/(?:anime|sentai|normal)\/[^/]+\/(\d+)\/(\d+)/
+          ) || nextEpisodeUrl.match(/\/watch\/tv\/[^/]+\/(\d+)\/(\d+)/);
+        if (seasonEpMatch) {
+          const s = parseInt(seasonEpMatch[1], 10);
+          const ep = parseInt(seasonEpMatch[2], 10);
+          return {
+            season: s,
+            episode: ep,
+            displayEpisode: getDisplayEpisodeNumber(s, ep),
+          };
+        }
+
+        const singleEpMatch = nextEpisodeUrl.match(
+          /\/watch\/tv\/(?:anime|sentai|normal)\/[^/]+\/(\d+)/
+        );
+        if (singleEpMatch) {
+          const ep = parseInt(singleEpMatch[1], 10);
+          return {
+            season: activeSeason || 1,
+            episode: ep,
+            displayEpisode: getDisplayEpisodeNumber(activeSeason || 1, ep),
+          };
+        }
       }
       return null;
-    }
+    },
+    [type, seasons, episodes, activeSeason, activeEpisode, nextEpisodeUrl, getDisplayEpisodeNumber]
+  );
 
-    if (nextEpisodeUrl) {
-      // Handles new category URL: /watch/tv/[category]/[id]/[episode]
-      const catMatch = nextEpisodeUrl.match(/\/watch\/tv\/(?:anime|sentai|normal)\/[^/]+\/(\d+)/);
-      if (catMatch) {
-        return {
-          season: activeSeason || 1,
-          episode: parseInt(catMatch[1], 10),
-        };
-      }
-
-      // Handles legacy URL: /watch/tv/[id]/[season]/[episode]
-      const legacyMatch = nextEpisodeUrl.match(/\/watch\/tv\/[^/]+\/(\d+)\/(\d+)/);
-      if (legacyMatch) {
-        return {
-          season: parseInt(legacyMatch[1], 10),
-          episode: parseInt(legacyMatch[2], 10),
-        };
-      }
-    }
-    return null;
-  }, [type, seasons, episodes, activeSeason, activeEpisode, nextEpisodeUrl]);
+  nextTargetRef.current = nextTarget;
 
   // Seamless in-place episode switcher
   const switchToEpisode = useCallback(
     async (newSeason: number, newEpisode: number) => {
       if (!effectiveTmdbId) return;
 
+      // Clear any pending seek debounce before switching episode
+      if (seekDebounceTimerRef.current) {
+        clearTimeout(seekDebounceTimerRef.current);
+        seekDebounceTimerRef.current = null;
+      }
+
+      // Save current episode progress & mark completed before switching (Manual Next rule)
+      saveToSupabase(true);
+
       setActiveSeason(newSeason);
       setActiveEpisode(newEpisode);
-      setCountdown(null);
       setAllProvidersFailed(false);
       setIsStreamReady(false);
       setPlaybackState("PLAYER_LOADING");
@@ -839,7 +1285,7 @@ export default function VideoPlayer({
         setAllProvidersFailed(true);
       }
     },
-    [effectiveTmdbId, title, category, showFullscreenControls]
+    [effectiveTmdbId, title, category, showFullscreenControls, saveToSupabase]
   );
 
   // Retry playback resolution when error occurs
@@ -884,27 +1330,7 @@ export default function VideoPlayer({
     };
   }, [switchToEpisode]);
 
-  // Countdown timer for Auto-Next
-  useEffect(() => {
-    if (countdown === null) return;
 
-    countdownTimerRef.current = setTimeout(() => {
-      setCountdown((prev) => {
-        if (prev === null) return null;
-        if (prev <= 1) {
-          if (nextTarget) {
-            switchToEpisode(nextTarget.season, nextTarget.episode);
-          }
-          return null;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => {
-      if (countdownTimerRef.current) clearTimeout(countdownTimerRef.current);
-    };
-  }, [countdown, nextTarget, switchToEpisode]);
 
   /**
    * Format Player Media Information:
@@ -982,38 +1408,7 @@ export default function VideoPlayer({
           </div>
         )}
 
-        {/* Auto Next Countdown Overlay for TV Series */}
-        {countdown !== null && nextTarget && (
-          <div className="absolute inset-0 z-40 bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
-            <div className="w-14 h-14 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center mb-3">
-              <FastForward className="w-7 h-7 text-sky-400 animate-pulse" />
-            </div>
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
-              Next S{String(nextTarget.season).padStart(2, "0")} E{String(nextTarget.episode).padStart(2, "0")} starting in {countdown}s
-            </h3>
-            <p className="text-xs sm:text-sm text-zinc-400 mb-5">
-              Auto Next is enabled
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setCountdown(null)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs sm:text-sm font-semibold text-zinc-300 transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-                <span>Cancel</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => switchToEpisode(nextTarget.season, nextTarget.episode)}
-                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-xs sm:text-sm font-bold text-white shadow-lg shadow-sky-600/30 transition-all cursor-pointer"
-              >
-                <SkipForward className="w-4 h-4" />
-                <span>Play Now</span>
-              </button>
-            </div>
-          </div>
-        )}
+
 
         {/* ========================================================================= */}
         {/* FULLSCREEN OVERLAYS (Only visible when isFullscreen === true)              */}
@@ -1073,9 +1468,9 @@ export default function VideoPlayer({
                     type="button"
                     onClick={() => switchToEpisode(nextTarget.season, nextTarget.episode)}
                     className="group/next inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-lg active:scale-95 border border-sky-400/30"
-                    title={`Next S${String(nextTarget.season).padStart(2, "0")} E${String(nextTarget.episode).padStart(2, "0")}`}
+                    title={`Next S${nextTarget.season} E${nextTarget.displayEpisode}`}
                   >
-                    <span>S{String(nextTarget.season).padStart(2, "0")} E{String(nextTarget.episode).padStart(2, "0")}</span>
+                    <span>S{nextTarget.season} E{nextTarget.displayEpisode}</span>
                     <SkipForward className="w-3.5 h-3.5 fill-current transition-transform group-hover/next:translate-x-0.5" />
                   </button>
                 )}
