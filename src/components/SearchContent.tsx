@@ -274,6 +274,10 @@ export default function SearchContent() {
                   : item.type === "TV Series"
                     ? "Drama"
                     : "Movie";
+              const remainingGenres =
+                item.genres && item.genres.length > 1
+                  ? item.genres.length - 1
+                  : 0;
 
               return (
                 <Link
@@ -296,7 +300,7 @@ export default function SearchContent() {
                   {/* TV Season Badge (Top Left) */}
                   {item.type === "TV Series" && (
                     <div className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-semibold text-zinc-300 shadow-md">
-                      {item.season || "S1"}
+                      {item.season ? (item.season.endsWith("S") ? item.season : `${item.season}S`) : "1S"}
                     </div>
                   )}
 
@@ -314,13 +318,14 @@ export default function SearchContent() {
                         {item.rating}
                       </span>
                       <span className="text-zinc-500">•</span>
-                      <span className="truncate max-w-[80px]">
+                      <span className="truncate max-w-[85px]">
                         {primaryGenre}
+                        {remainingGenres > 0 && ` +${remainingGenres}`}
                       </span>
                       <span className="text-zinc-500">•</span>
                       <span className="truncate">
                         {item.type === "TV Series"
-                          ? item.season || "Series"
+                          ? (item.season ? (item.season.endsWith("S") ? item.season : `${item.season}S`) : "Series")
                           : "Movie"}
                       </span>
                     </div>

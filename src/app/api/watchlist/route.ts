@@ -3,6 +3,7 @@ import {
   getUserWatchlistController,
   toggleWatchlistController,
   deleteWatchlistByIdController,
+  clearUserWatchlistController,
 } from "@/features/watchlist/controller/watchlist.controller";
 
 export const dynamic = "force-dynamic";
@@ -59,11 +60,23 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const clearAll = searchParams.get("all") === "true";
     const watchlistId = searchParams.get("watchlistId");
+
+    if (clearAll) {
+      const result = await clearUserWatchlistController();
+      return NextResponse.json(
+        {
+          success: true,
+          data: result,
+        },
+        { status: 200 }
+      );
+    }
 
     if (!watchlistId) {
       return NextResponse.json(
-        { success: false, error: "watchlistId query param is required" },
+        { success: false, error: "watchlistId or all=true query param is required" },
         { status: 400 }
       );
     }

@@ -6,6 +6,7 @@ import {
   requestGetWatchlist,
   requestToggleWatchlist,
   requestDeleteWatchlistById,
+  requestClearAllWatchlist,
   requestCheckWatchlistStatus,
 } from "../api/watchlist.api";
 import { ToggleWatchlistRequest, WatchlistItemDto } from "../watchlist.type";
@@ -95,6 +96,20 @@ export function useWatchlist() {
     }
   }, [fetchWatchlist]);
 
+  const removeAll = useCallback(async () => {
+    // Optimistic clear
+    setItems([]);
+
+    try {
+      await requestClearAllWatchlist();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to clear watchlist";
+      toast.error(msg);
+      // Re-fetch to restore state on failure
+      fetchWatchlist();
+    }
+  }, [fetchWatchlist]);
+
   return {
     items,
     isLoading,
@@ -102,6 +117,7 @@ export function useWatchlist() {
     fetchWatchlist,
     toggleItem,
     removeItemById,
+    removeAll,
   };
 }
 

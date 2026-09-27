@@ -282,3 +282,19 @@ export const deleteWatchlistByIdRepository = async (
 
   return true;
 };
+
+export const clearAllWatchlistByUserIdRepository = async (
+  userId: string
+): Promise<boolean> => {
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase
+    .from("watchlists")
+    .delete()
+    .eq("user_id", userId);
+
+  if (error) {
+    throw error;
+  }
+
+  return true;
+};

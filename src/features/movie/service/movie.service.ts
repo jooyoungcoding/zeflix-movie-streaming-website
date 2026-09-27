@@ -1691,6 +1691,29 @@ export interface BrowseGridOptions {
   limit?: number;
 }
 
+// Cache number of seasons per TV show ID to minimize external TMDB API calls
+const tvSeasonCountCache = new Map<number, number>();
+
+export async function resolveTVSeasonCount(tvId: number): Promise<number> {
+  const cached = tvSeasonCountCache.get(tvId);
+  if (cached !== undefined) return cached;
+  try {
+    const details = await findTVDetailsWithRatingsFromTMDB(tvId);
+    let count = 1;
+    if (details?.number_of_seasons && details.number_of_seasons > 0) {
+      count = details.number_of_seasons;
+    } else if (details?.seasons && Array.isArray(details.seasons)) {
+      const valid = details.seasons.filter((s) => (s.season_number ?? 0) > 0);
+      count = valid.length > 0 ? valid.length : 1;
+    }
+    tvSeasonCountCache.set(tvId, count);
+    return count;
+  } catch {
+    tvSeasonCountCache.set(tvId, 1);
+    return 1;
+  }
+}
+
 /**
  * Service to fetch paginated browse grid items with filters (Type, Country, Genre, Sort)
  */
@@ -1715,9 +1738,8 @@ export const getBrowseGridService = async ({
       case "new-releases":
         return media === "movie" ? "primary_release_date.desc" : "first_air_date.desc";
       case "title-asc":
-        return media === "movie" ? "original_title.asc" : "name.asc";
       case "title-desc":
-        return media === "movie" ? "original_title.desc" : "name.desc";
+        return "popularity.desc";
       case "all":
       case "popular":
       default:
@@ -1758,6 +1780,8 @@ export const getBrowseGridService = async ({
     } else if (sort === "new-releases") {
       params["vote_count.gte"] = 5;
       params["primary_release_date.lte"] = new Date().toISOString().split("T")[0];
+    } else if (sort === "title-asc" || sort === "title-desc") {
+      params["vote_count.gte"] = 20;
     }
 
     const movieRes = await findDiscoverMoviesFromTMDB(params);
@@ -1776,6 +1800,16 @@ export const getBrowseGridService = async ({
       backdrop: m.backdrop_path ? `https://image.tmdb.org/t/p/original${m.backdrop_path}` : "",
       year: m.release_date ? m.release_date.slice(0, 4) : undefined,
     }));
+
+    if (sort === "title-asc") {
+      items.sort((a, b) =>
+        a.title.localeCompare(b.title, "en", { sensitivity: "base", numeric: true })
+      );
+    } else if (sort === "title-desc") {
+      items.sort((a, b) =>
+        b.title.localeCompare(a.title, "en", { sensitivity: "base", numeric: true })
+      );
+    }
 
     return {
       items,
@@ -1803,25 +1837,42 @@ export const getBrowseGridService = async ({
     } else if (sort === "new-releases") {
       params["vote_count.gte"] = 5;
       params["first_air_date.lte"] = new Date().toISOString().split("T")[0];
+    } else if (sort === "title-asc" || sort === "title-desc") {
+      params["vote_count.gte"] = 15;
     }
 
     const tvRes = await findDiscoverTVFromTMDB(params);
     const rawSeries = tvRes?.results || [];
     const validSeries = rawSeries.filter((s) => Boolean(s.name) && Boolean(s.poster_path));
-    const items: BrowseItem[] = validSeries.slice(0, limit).map((s) => ({
-      id: String(s.id),
-      title: s.name ?? "",
-      rating:
-        typeof s.vote_average === "number" && s.vote_average > 0
-          ? s.vote_average.toFixed(1)
-          : "0.0",
-      genres: (s.genre_ids || []).map((id) => tvGenreMap[id]).filter(Boolean),
-      type: "TV Series",
-      poster: `https://image.tmdb.org/t/p/w500${s.poster_path}`,
-      backdrop: s.backdrop_path ? `https://image.tmdb.org/t/p/original${s.backdrop_path}` : "",
-      season: "S1",
-      year: s.first_air_date ? s.first_air_date.slice(0, 4) : undefined,
-    }));
+    const items: BrowseItem[] = await Promise.all(
+      validSeries.slice(0, limit).map(async (s) => {
+        const seasonCount = await resolveTVSeasonCount(s.id);
+        return {
+          id: String(s.id),
+          title: s.name ?? "",
+          rating:
+            typeof s.vote_average === "number" && s.vote_average > 0
+              ? s.vote_average.toFixed(1)
+              : "0.0",
+          genres: (s.genre_ids || []).map((id) => tvGenreMap[id]).filter(Boolean),
+          type: "TV Series",
+          poster: `https://image.tmdb.org/t/p/w500${s.poster_path}`,
+          backdrop: s.backdrop_path ? `https://image.tmdb.org/t/p/original${s.backdrop_path}` : "",
+          season: `${seasonCount}S`,
+          year: s.first_air_date ? s.first_air_date.slice(0, 4) : undefined,
+        };
+      })
+    );
+
+    if (sort === "title-asc") {
+      items.sort((a, b) =>
+        a.title.localeCompare(b.title, "en", { sensitivity: "base", numeric: true })
+      );
+    } else if (sort === "title-desc") {
+      items.sort((a, b) =>
+        b.title.localeCompare(a.title, "en", { sensitivity: "base", numeric: true })
+      );
+    }
 
     return {
       items,
@@ -1860,6 +1911,9 @@ export const getBrowseGridService = async ({
     movieParams["primary_release_date.lte"] = today;
     tvParams["vote_count.gte"] = 5;
     tvParams["first_air_date.lte"] = today;
+  } else if (sort === "title-asc" || sort === "title-desc") {
+    movieParams["vote_count.gte"] = 20;
+    tvParams["vote_count.gte"] = 15;
   }
 
   const [movieRes, tvRes] = await Promise.all([
@@ -1888,20 +1942,25 @@ export const getBrowseGridService = async ({
     year: m.release_date ? m.release_date.slice(0, 4) : undefined,
   }));
 
-  const tvItems: BrowseItem[] = rawSeries.map((s) => ({
-    id: String(s.id),
-    title: s.name ?? "",
-    rating:
-      typeof s.vote_average === "number" && s.vote_average > 0
-        ? s.vote_average.toFixed(1)
-        : "0.0",
-    genres: (s.genre_ids || []).map((id) => tvGenreMap[id]).filter(Boolean),
-    type: "TV Series",
-    poster: `https://image.tmdb.org/t/p/w500${s.poster_path}`,
-    backdrop: s.backdrop_path ? `https://image.tmdb.org/t/p/original${s.backdrop_path}` : "",
-    season: "S1",
-    year: s.first_air_date ? s.first_air_date.slice(0, 4) : undefined,
-  }));
+  const tvItems: BrowseItem[] = await Promise.all(
+    rawSeries.map(async (s) => {
+      const seasonCount = await resolveTVSeasonCount(s.id);
+      return {
+        id: String(s.id),
+        title: s.name ?? "",
+        rating:
+          typeof s.vote_average === "number" && s.vote_average > 0
+            ? s.vote_average.toFixed(1)
+            : "0.0",
+        genres: (s.genre_ids || []).map((id) => tvGenreMap[id]).filter(Boolean),
+        type: "TV Series",
+        poster: `https://image.tmdb.org/t/p/w500${s.poster_path}`,
+        backdrop: s.backdrop_path ? `https://image.tmdb.org/t/p/original${s.backdrop_path}` : "",
+        season: `${seasonCount}S`,
+        year: s.first_air_date ? s.first_air_date.slice(0, 4) : undefined,
+      };
+    })
+  );
 
   const interleaved: BrowseItem[] = [];
   const maxLen = Math.max(movieItems.length, tvItems.length);
@@ -1911,6 +1970,16 @@ export const getBrowseGridService = async ({
   }
 
   const selectedItems = interleaved.slice(0, limit);
+  if (sort === "title-asc") {
+    selectedItems.sort((a, b) =>
+      a.title.localeCompare(b.title, "en", { sensitivity: "base", numeric: true })
+    );
+  } else if (sort === "title-desc") {
+    selectedItems.sort((a, b) =>
+      b.title.localeCompare(a.title, "en", { sensitivity: "base", numeric: true })
+    );
+  }
+
   const totalPages = Math.max(movieRes?.total_pages || 1, tvRes?.total_pages || 1);
   const totalResults = (movieRes?.total_results || 0) + (tvRes?.total_results || 0);
 
@@ -2005,20 +2074,25 @@ export const searchContentService = async ({
     year: m.release_date ? m.release_date.slice(0, 4) : undefined,
   }));
 
-  const tvItems: BrowseItem[] = rawSeries.map((s) => ({
-    id: String(s.id),
-    title: s.name ?? "",
-    rating:
-      typeof s.vote_average === "number" && s.vote_average > 0
-        ? s.vote_average.toFixed(1)
-        : "0.0",
-    genres: (s.genre_ids || []).map((id) => tvGenreMap[id]).filter(Boolean),
-    type: "TV Series",
-    poster: `https://image.tmdb.org/t/p/w500${s.poster_path}`,
-    backdrop: s.backdrop_path ? `https://image.tmdb.org/t/p/original${s.backdrop_path}` : "",
-    season: "S1",
-    year: s.first_air_date ? s.first_air_date.slice(0, 4) : undefined,
-  }));
+  const tvItems: BrowseItem[] = await Promise.all(
+    rawSeries.map(async (s) => {
+      const seasonCount = await resolveTVSeasonCount(s.id);
+      return {
+        id: String(s.id),
+        title: s.name ?? "",
+        rating:
+          typeof s.vote_average === "number" && s.vote_average > 0
+            ? s.vote_average.toFixed(1)
+            : "0.0",
+        genres: (s.genre_ids || []).map((id) => tvGenreMap[id]).filter(Boolean),
+        type: "TV Series",
+        poster: `https://image.tmdb.org/t/p/w500${s.poster_path}`,
+        backdrop: s.backdrop_path ? `https://image.tmdb.org/t/p/original${s.backdrop_path}` : "",
+        season: `${seasonCount}S`,
+        year: s.first_air_date ? s.first_air_date.slice(0, 4) : undefined,
+      };
+    })
+  );
 
   const interleaved: BrowseItem[] = [];
   const maxLen = Math.max(movieItems.length, tvItems.length);
@@ -2290,8 +2364,12 @@ export const getReleasesService = async ({
 
         if (matched) {
           const sNum = matched.season_number;
+          const offsets = calculateSeasonOffsets(regularSeasons);
+          const offset = offsets.get(sNum) || 0;
           const epCount = matched.episode_count || 1;
-          const sInfo = epCount > 1 ? `S${sNum} E1-${epCount}` : `S${sNum} E1`;
+          const startEp = offset + 1;
+          const endEp = offset + epCount;
+          const sInfo = epCount > 1 ? `S${sNum} E${startEp}-${endEp}` : `S${sNum} E${startEp}`;
           tvDetailsMap.set(tv.id, { seasonInfo: sInfo });
           return;
         }

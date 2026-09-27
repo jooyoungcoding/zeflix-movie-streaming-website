@@ -216,18 +216,18 @@ export default function FeaturedInZeflix() {
             alt={currentItem.title}
             fill
             priority
-            className="object-cover object-center scale-105 animate-fade-in transition-all duration-700 brightness-[0.55]"
+            className="object-cover object-center scale-105 animate-fade-in transition-all duration-700 brightness-[0.65]"
             sizes="100vw"
           />
         ) : (
           <div className="w-full h-full bg-[#0d1017]" />
         )}
         {/* Top Edge Seamless Fade to Solid Black */}
-        <div className="absolute top-0 inset-x-0 h-24 sm:h-32 bg-gradient-to-b from-black via-black/50 to-transparent" />
-        {/* Left Side Shadow for Text Readability (reduced shadow) */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent lg:w-[62%]" />
+        <div className="absolute top-0 inset-x-0 h-36 sm:h-48 bg-gradient-to-b from-black via-black/75 via-25% to-transparent" />
+        {/* Left Side Shadow for Text Readability */}
+        <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent lg:w-[55%]" />
         {/* Bottom Edge Fade to Black */}
-        <div className="absolute bottom-0 inset-x-0 h-36 sm:h-44 bg-gradient-to-t from-black via-black/80 to-transparent" />
+        <div className="absolute bottom-0 inset-x-0 h-32 sm:h-44 bg-gradient-to-t from-black via-black/75 via-25% to-transparent" />
         {/* Subtle Emerald Cinematic Glow */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.06),transparent_50%)]" />
       </div>
@@ -237,10 +237,10 @@ export default function FeaturedInZeflix() {
         {/* Top Section Header */}
         <div className="mb-6 sm:mb-8 lg:mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">
-            Featured in Zeflix
+            Best Pick for your watching
           </h2>
           <p className="text-sm sm:text-base text-zinc-400 font-custom2 mt-1 font-medium tracking-wide">
-            Best featured for you today
+            Pick your vibe and enjoy the show
           </p>
         </div>
 

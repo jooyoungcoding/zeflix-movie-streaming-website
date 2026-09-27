@@ -9,6 +9,7 @@ import {
   insertWatchlistService,
   removeWatchlistService,
   removeWatchlistByIdService,
+  clearAllWatchlistService,
 } from "../service/watchlist.service";
 import { ToggleWatchlistRequest, WatchlistItemDto } from "../watchlist.type";
 
@@ -155,5 +156,15 @@ export const deleteWatchlistByIdController = async (
   }
 
   await removeWatchlistByIdService(currentUser.user.id, watchlistId);
+  return { success: true };
+};
+
+export const clearUserWatchlistController = async (): Promise<{ success: boolean }> => {
+  const currentUser = await getCurrentUserService();
+  if (!currentUser?.user?.id) {
+    throw new Error("Unauthorized");
+  }
+
+  await clearAllWatchlistService(currentUser.user.id);
   return { success: true };
 };

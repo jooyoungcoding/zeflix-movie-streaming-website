@@ -11,6 +11,7 @@ import {
     Star,
     AlertCircle,
     RefreshCw,
+    Search,
 } from "lucide-react";
 import {
     fetchReleases,
@@ -54,6 +55,7 @@ export default function ReleasePage() {
     // Dropdown states
     const [isRegionOpen, setIsRegionOpen] = useState<boolean>(false);
     const [isYearOpen, setIsYearOpen] = useState<boolean>(false);
+    const [countrySearch, setCountrySearch] = useState<string>("");
 
     const regionDropdownRef = useRef<HTMLDivElement>(null);
     const yearDropdownRef = useRef<HTMLDivElement>(null);
@@ -141,6 +143,7 @@ export default function ReleasePage() {
                 !regionDropdownRef.current.contains(event.target as Node)
             ) {
                 setIsRegionOpen(false);
+                setCountrySearch("");
             }
             if (
                 yearDropdownRef.current &&
@@ -169,6 +172,23 @@ export default function ReleasePage() {
         selectedRegion.toLowerCase() === "worldwide"
             ? "Discover Movies/TV Series released around the world."
             : `Discover Movies/TV Series released in ${currentRegionName}.`;
+
+    // Filtered countries based on search query
+    const filteredCountries = useMemo(() => {
+        const q = countrySearch.trim().toLowerCase();
+        if (!q) return countries;
+        return countries.filter(
+            (c) =>
+                c.name.toLowerCase().includes(q) ||
+                c.code.toLowerCase().includes(q)
+        );
+    }, [countries, countrySearch]);
+
+    const showWorldwideOption = useMemo(() => {
+        const q = countrySearch.trim().toLowerCase();
+        if (!q) return true;
+        return "worldwide".includes(q) || "all".includes(q) || "global".includes(q);
+    }, [countrySearch]);
 
     return (
         <main className="min-h-screen bg-[#07090e] text-white pb-24">
@@ -242,28 +262,57 @@ export default function ReleasePage() {
                             {/* Region Options Menu */}
                             {isRegionOpen && (
                                 <div className="absolute left-0 sm:right-auto mt-2 w-64 sm:w-72 bg-[#121620] border border-white/15 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.8)] backdrop-blur-xl z-[60] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                                    {/* Search Input Box */}
+                                    <div className="p-2.5 border-b border-white/10 sticky top-0 bg-[#121620] z-10">
+                                        <div className="relative flex items-center">
+                                            <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 pointer-events-none" />
+                                            <input
+                                                type="text"
+                                                value={countrySearch}
+                                                onChange={(e) => setCountrySearch(e.target.value)}
+                                                placeholder="Search country..."
+                                                className="w-full bg-[#181d2a] text-xs text-white placeholder-zinc-500 rounded-xl pl-8 pr-7 py-2 border border-white/10 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                                onClick={(e) => e.stopPropagation()}
+                                                autoFocus
+                                            />
+                                            {countrySearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCountrySearch("")}
+                                                    className="absolute right-2.5 text-zinc-400 hover:text-white text-xs cursor-pointer p-0.5"
+                                                    aria-label="Clear search"
+                                                >
+                                                    ✕
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+
                                     {/* Options List */}
                                     <div className="max-h-60 overflow-y-auto py-1 scrollbar-thin scrollbar-thumb-white/10">
                                         {/* Worldwide Option */}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setSelectedRegion("worldwide");
-                                                setIsRegionOpen(false);
-                                            }}
-                                            className={`w-full text-left px-4 py-2 text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${selectedRegion.toLowerCase() === "worldwide"
-                                                ? "text-emerald-400 font-semibold"
-                                                : "text-zinc-300 hover:bg-white/5 hover:text-white"
-                                                }`}
-                                        >
-                                            <span>Worldwide</span>
-                                            {selectedRegion.toLowerCase() === "worldwide" && (
-                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                                            )}
-                                        </button>
+                                        {showWorldwideOption && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setSelectedRegion("worldwide");
+                                                    setIsRegionOpen(false);
+                                                    setCountrySearch("");
+                                                }}
+                                                className={`w-full text-left px-4 py-2 text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${selectedRegion.toLowerCase() === "worldwide"
+                                                    ? "text-emerald-400 font-semibold"
+                                                    : "text-zinc-300 hover:bg-white/5 hover:text-white"
+                                                    }`}
+                                            >
+                                                <span>Worldwide</span>
+                                                {selectedRegion.toLowerCase() === "worldwide" && (
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                )}
+                                            </button>
+                                        )}
 
-                                        {/* All TMDB Countries */}
-                                        {countries.map((c) => {
+                                        {/* All Filtered TMDB Countries */}
+                                        {filteredCountries.map((c) => {
                                             const isSelected =
                                                 selectedRegion.toLowerCase() === c.code.toLowerCase();
                                             return (
@@ -273,6 +322,7 @@ export default function ReleasePage() {
                                                     onClick={() => {
                                                         setSelectedRegion(c.code);
                                                         setIsRegionOpen(false);
+                                                        setCountrySearch("");
                                                     }}
                                                     className={`w-full text-left px-4 py-2 text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${isSelected
                                                         ? "text-emerald-400 font-semibold"
@@ -280,9 +330,19 @@ export default function ReleasePage() {
                                                         }`}
                                                 >
                                                     <span className="truncate pr-2">{c.name}</span>
+                                                    {isSelected && (
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                                                    )}
                                                 </button>
                                             );
                                         })}
+
+                                        {/* Empty Search State */}
+                                        {!showWorldwideOption && filteredCountries.length === 0 && (
+                                            <div className="py-6 text-center text-xs text-zinc-500">
+                                                No country found
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -544,19 +604,9 @@ export default function ReleasePage() {
                                                 })}
                                             </div>
 
-                                            {/* More / Less Button when month has more than 8 releases */}
+                                            {/* Less / More Button when month has more than 8 releases */}
                                             {monthGroup.releases.length > 8 && (
                                                 <div className="flex items-center justify-center gap-3 pt-2">
-                                                    {hasMore && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleMore(monthGroup.month)}
-                                                            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer font-custom2"
-                                                        >
-                                                            <span>More</span>
-                                                            <ChevronDown className="w-3.5 h-3.5" />
-                                                        </button>
-                                                    )}
                                                     {canCollapse && (
                                                         <button
                                                             type="button"
@@ -565,6 +615,16 @@ export default function ReleasePage() {
                                                         >
                                                             <span>Less</span>
                                                             <ChevronUp className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    )}
+                                                    {hasMore && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleMore(monthGroup.month)}
+                                                            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs sm:text-sm font-medium transition-all duration-200 cursor-pointer font-custom2"
+                                                        >
+                                                            <span>More</span>
+                                                            <ChevronDown className="w-3.5 h-3.5" />
                                                         </button>
                                                     )}
                                                 </div>

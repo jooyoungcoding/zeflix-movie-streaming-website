@@ -60,15 +60,38 @@ export default async function SharedTvWatchPage({
     );
   }
 
-  // Find current episode details if available
+  // Find current episode details if available (check both seasonal episode number and cumulative display episode number)
   const currentEp = tv.episodes.find(
-    (e) => e.seasonNumber === sNum && e.episodeNumber === epNum
+    (e) =>
+      e.seasonNumber === sNum &&
+      (e.episodeNumber === epNum || e.displayEpisodeNumber === epNum)
   );
 
-  // Preserve category route for next episode
+  // Canonical season episode number (e.g. TMDB episode 1 for season 3 episode 51)
+  const effectiveEpNum = currentEp?.episodeNumber ?? epNum;
+
+  // Boundary check: If requested episode was not found and exceeds current season count, advance to next season if available
+  if (!currentEp && tv.episodes.length > 0 && epNum > tv.episodes.length) {
+    const nextSeason = tv.seasons.find((s) => s.seasonNumber === sNum + 1);
+    if (nextSeason && nextSeason.episodeCount > 0) {
+      redirect(
+        buildWatchUrl({
+          type: "tv",
+          tmdbId: id,
+          category: verifiedCategory,
+          season: sNum + 1,
+          episode: 1,
+        })
+      );
+    }
+  }
+
+  // Preserve category route for next episode (including cross-season progression)
   let nextEpisodeUrl: string | undefined = undefined;
   const currentEpIndex = tv.episodes.findIndex(
-    (e) => e.seasonNumber === sNum && e.episodeNumber === epNum
+    (e) =>
+      e.seasonNumber === sNum &&
+      (e.episodeNumber === effectiveEpNum || e.displayEpisodeNumber === epNum)
   );
 
   if (currentEpIndex !== -1 && currentEpIndex < tv.episodes.length - 1) {
@@ -79,17 +102,23 @@ export default async function SharedTvWatchPage({
       nextEp.episodeNumber,
       nextEp.seasonNumber ?? sNum
     );
-  } else if (category === "sentai" && (tv.episodes.length === 0 || epNum < 55)) {
-    nextEpisodeUrl = buildNextEpisodeUrl(category, id, epNum + 1, sNum);
-  } else if (tv.episodes.length > 0 && epNum < tv.episodes.length) {
-    nextEpisodeUrl = buildNextEpisodeUrl(category, id, epNum + 1, sNum);
+  } else if (currentEpIndex === tv.episodes.length - 1) {
+    // Season ended: seamlessly move to next season episode 1 if available
+    const nextSeason = tv.seasons.find((s) => s.seasonNumber === sNum + 1);
+    if (nextSeason && nextSeason.episodeCount > 0) {
+      nextEpisodeUrl = buildNextEpisodeUrl(category, id, 1, sNum + 1);
+    }
+  } else if (category === "sentai" && (tv.episodes.length === 0 || effectiveEpNum < 55)) {
+    nextEpisodeUrl = buildNextEpisodeUrl(category, id, effectiveEpNum + 1, sNum);
+  } else if (tv.episodes.length > 0 && effectiveEpNum < tv.episodes.length) {
+    nextEpisodeUrl = buildNextEpisodeUrl(category, id, effectiveEpNum + 1, sNum);
   }
 
   // Resolve video playback session through centralized PlaybackService
   const playbackSession = await defaultPlaybackService.getTvPlayback(
     tmdbId,
     sNum,
-    epNum,
+    effectiveEpNum,
     tv.title,
     {
       category,
@@ -138,16 +167,27 @@ export default async function SharedTvWatchPage({
               : 2024
           }
           season={sNum}
-          episode={epNum}
+          episode={effectiveEpNum}
           episodeId={currentEp?.id ? String(currentEp.id) : undefined}
           playbackSession={playbackSession}
           poster={currentEp?.still || tv.backdrop || tv.poster}
           nextEpisodeUrl={nextEpisodeUrl}
           tvId={tmdbId}
           currentSeason={sNum}
-          currentEpisode={epNum}
+          currentEpisode={effectiveEpNum}
           seasons={tv.seasons}
           episodes={tv.episodes}
+          historyMeta={{
+            tvName: tv.title,
+            tvPosterPath: tv.poster || null,
+            tvBackdropPath: tv.backdrop || null,
+            tvFirstAirDate: tv.releaseDate || null,
+            tvVoteAverage: parseFloat(tv.rating) || undefined,
+            tvOverview: tv.description || null,
+            episodeName: currentEp?.title || undefined,
+            episodeStillPath: currentEp?.still || null,
+            episodeAirDate: currentEp?.airDate || null,
+          }}
         />
 
         {/* Reused EpisodesTab Section */}
@@ -160,7 +200,7 @@ export default async function SharedTvWatchPage({
               seasons={tv.seasons}
               initialEpisodes={tv.episodes}
               currentSeasonNumber={sNum}
-              activeEpisodeNumber={epNum}
+              activeEpisodeNumber={effectiveEpNum}
               activeSeasonNumber={sNum}
             />
           </div>
