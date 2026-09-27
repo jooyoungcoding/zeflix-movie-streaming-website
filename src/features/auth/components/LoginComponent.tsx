@@ -220,6 +220,7 @@ export default function LoginComponent({
             />
             <button
               type="button"
+              tabIndex={-1}
               onClick={() => setShowPassword(!showPassword)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-emerald-400 transition-colors cursor-pointer p-1"
               aria-label={showPassword ? "Hide password" : "Show password"}

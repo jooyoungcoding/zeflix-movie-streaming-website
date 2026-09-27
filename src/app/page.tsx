@@ -1,5 +1,7 @@
 import HeroSlider from "@/components/HeroSlider";
 import WelcomeModal from "@/components/WelcomeModal";
+import ContinueWatchingSection from "@/components/ContinueWatchingSection";
+import WatchlistSection from "@/components/WatchlistSection";
 import JustRelease from "@/components/JustRelease";
 import PopularOfWeek from "@/components/PopularOfWeek";
 import FeaturedInZeflix from "@/components/FeaturedInZeflix";
@@ -14,6 +16,12 @@ export default function Home() {
 
       {/* Hero Section Carousel (5 Movies Slider) */}
       <HeroSlider />
+
+      {/* Continue Watching Section (Authenticated Only) */}
+      <ContinueWatchingSection />
+
+      {/* Your Watchlist Section (Authenticated Only) */}
+      <WatchlistSection />
 
       {/* Just Release Section */}
       <JustRelease />

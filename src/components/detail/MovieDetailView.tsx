@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Play,
+  CirclePlay,
   Bookmark,
   Star,
   Share2,
@@ -17,10 +18,16 @@ import CastSection from "./CastSection";
 import ReviewsTab from "./ReviewsTab";
 import SimilarContentSection from "./SimilarContentSection";
 import TrailerModal from "./TrailerModal";
+import DetailSkeletonLoading from "./DetailSkeletonLoading";
 import {
   requestCheckWatchlistStatus,
   requestToggleWatchlist,
 } from "@/features/watchlist/api/watchlist.api";
+import { requestGetProgress } from "@/features/watch-history/api/watch-history.api";
+import {
+  getSavedProgress,
+  clearSavedProgress,
+} from "@/features/playback/service/watch-history.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useAuthModalStore } from "@/store/auth-modal.store";
 import {
@@ -82,6 +89,61 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
     };
   }, [movie.id]);
 
+  const [hasWatched, setHasWatched] = useState<boolean>(false);
+  const [savedProgressSeconds, setSavedProgressSeconds] = useState<number>(0);
+  const [isCheckingProgress, setIsCheckingProgress] = useState<boolean>(true);
+
+  useEffect(() => {
+    setIsCheckingProgress(true);
+    let isMounted = true;
+    const tmdbId = parseInt(movie.id, 10);
+    if (isNaN(tmdbId)) {
+      setIsCheckingProgress(false);
+      return;
+    }
+
+    // Safety timeout to avoid hanging skeleton if network is stalled
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        setIsCheckingProgress(false);
+      }
+    }, 3000);
+
+    // Fast check from localStorage
+    const localProgress = getSavedProgress("movie", movie.id);
+    if (localProgress > 0) {
+      setHasWatched(true);
+      setSavedProgressSeconds(localProgress);
+    }
+
+    // Authoritative check from Supabase watch_history
+    requestGetProgress("movie", tmdbId)
+      .then((res) => {
+        if (isMounted) {
+          if (res.success && res.data && (res.data.progress_seconds > 0 || res.data.completed)) {
+            setHasWatched(true);
+            setSavedProgressSeconds(res.data.progress_seconds || 0);
+          } else if (res.success && !res.data) {
+            setHasWatched(false);
+            setSavedProgressSeconds(0);
+            clearSavedProgress("movie", movie.id);
+          }
+        }
+      })
+      .catch(() => { })
+      .finally(() => {
+        if (isMounted) {
+          clearTimeout(timeoutId);
+          setIsCheckingProgress(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [movie.id]);
+
   const handleWatchNow = () => {
     const category = determineWatchCategory({
       tmdbId: String(movie.id),
@@ -92,7 +154,9 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
       originalLanguage: movie.originalLanguage,
       mediaType: "movie",
     });
-    router.push(buildWatchUrl({ type: "movie", tmdbId: movie.id, category }));
+    const saved = savedProgressSeconds || getSavedProgress("movie", movie.id);
+    const startQuery = saved > 0 ? `?start=${Math.floor(saved)}` : "";
+    router.push(`${buildWatchUrl({ type: "movie", tmdbId: movie.id, category })}${startQuery}`);
   };
 
   const toggleWatchlist = async () => {
@@ -158,6 +222,10 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
   };
 
 
+
+  if (isCheckingProgress) {
+    return <DetailSkeletonLoading />;
+  }
 
   return (
     <div
@@ -273,21 +341,30 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pt-1 w-full">
               {/* Left Action Buttons (Row 1 on mobile: Watch Now & Add Watchlist) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto">
-                {/* Watch Now Button (Hidden for upcoming / unreleased movies) */}
+                {/* Watch Now / Continue Button */}
                 {!(
                   movie.isUpcoming ??
                   (Boolean(movie.releaseDate && movie.releaseDate > new Date().toISOString().split("T")[0]) ||
-                   Boolean(movie.status && movie.status.toLowerCase() !== "released"))
+                    Boolean(movie.status && movie.status.toLowerCase() !== "released"))
                 ) && (
-                  <button
-                    type="button"
-                    onClick={handleWatchNow}
-                    className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-5 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white shrink-0" />
-                    <span>Watch Now</span>
-                  </button>
-                )}
+                    <button
+                      type="button"
+                      onClick={handleWatchNow}
+                      className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-5 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
+                    >
+                      {hasWatched ? (
+                        <>
+                          <CirclePlay className="w-4 sm:w-5 h-4 sm:h-5 fill-white/20 stroke-[2.2] shrink-0" />
+                          <span>Continue</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 fill-white shrink-0" />
+                          <span>Play Now</span>
+                        </>
+                      )}
+                    </button>
+                  )}
 
                 {/* Watchlist Bookmark Button */}
                 <button

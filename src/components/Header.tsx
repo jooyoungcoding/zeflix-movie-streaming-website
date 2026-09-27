@@ -636,17 +636,17 @@ export default function Header() {
                   <Link
                     href="/watchlist"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
+                    className="flex items-center justify-center gap-2.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-zinc-200 bg-[#1c1f26] hover:text-white hover:bg-[#282d37] border border-white/5 active:scale-95 shadow-sm"
                   >
-                    <Bookmark className="w-4 h-4 text-zinc-400" />
+                    <Bookmark className="w-4.5 h-4.5 text-zinc-300 shrink-0" />
                     <span>Watchlist</span>
                   </Link>
                   <Link
                     href="/history"
                     onClick={() => setIsMobileMenuOpen(false)}
-                    className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-colors text-zinc-300 bg-[#1c1f26] hover:text-white hover:bg-[#282d37]"
+                    className="flex items-center justify-center gap-2.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all duration-200 text-zinc-200 bg-[#1c1f26] hover:text-white hover:bg-[#282d37] border border-white/5 active:scale-95 shadow-sm"
                   >
-                    <History className="w-4 h-4 text-zinc-400" />
+                    <History className="w-4.5 h-4.5 text-zinc-300 shrink-0" />
                     <span>History</span>
                   </Link>
                   {/* Settings (Temporarily commented out) */}

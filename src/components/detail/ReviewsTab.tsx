@@ -15,7 +15,7 @@ export default function ReviewsTab({
   averageRating,
 }: ReviewsTabProps) {
   const [selectedRating, setSelectedRating] = useState<number | null>(null);
-  const [sortFilter, setSortFilter] = useState<string>("newest");
+  const [sortFilter, setSortFilter] = useState<"highest" | "lowest">("highest");
   const [isSortOpen, setIsSortOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState<number>(6);
 
@@ -28,15 +28,10 @@ export default function ReviewsTab({
         return score10 === selectedRating;
       });
     }
-    if (sortFilter === "highest") {
-      list.sort((a, b) => b.rating - a.rating);
-    } else if (sortFilter === "lowest") {
+    if (sortFilter === "lowest") {
       list.sort((a, b) => a.rating - b.rating);
     } else {
-      list.sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      list.sort((a, b) => b.rating - a.rating);
     }
     return list;
   }, [reviews, selectedRating, sortFilter]);
@@ -112,19 +107,17 @@ export default function ReviewsTab({
                     setVisibleCount(6);
                   }}
                   title={`${d.count} ${d.count === 1 ? "review" : "reviews"} with rating ${d.score}/10`}
-                  className={`flex-1 flex flex-col items-center gap-1.5 py-1 px-0.5 rounded-lg transition-all cursor-pointer group active:scale-95 ${
-                    isSelected ? "" : "hover:bg-white/5"
-                  } ${isDimmed ? "opacity-35 hover:opacity-75" : "opacity-100"}`}
+                  className={`flex-1 flex flex-col items-center gap-1.5 py-1 px-0.5 rounded-lg transition-all cursor-pointer group active:scale-95 ${isSelected ? "" : "hover:bg-white/5"
+                    } ${isDimmed ? "opacity-35 hover:opacity-75" : "opacity-100"}`}
                 >
                   {/* Count Above Bar */}
                   <span
-                    className={`text-[10px] leading-none transition-colors ${
-                      isSelected
-                        ? "text-white font-bold"
-                        : d.hasCount
-                          ? "text-zinc-300 font-semibold group-hover:text-white"
-                          : "text-zinc-600"
-                    }`}
+                    className={`text-[10px] leading-none transition-colors ${isSelected
+                      ? "text-white font-bold"
+                      : d.hasCount
+                        ? "text-zinc-300 font-semibold group-hover:text-white"
+                        : "text-zinc-600"
+                      }`}
                   >
                     {d.count}
                   </span>
@@ -132,26 +125,24 @@ export default function ReviewsTab({
                   {/* Bar */}
                   <div className="w-full h-20 bg-[#0d0f14] rounded-sm flex items-end overflow-hidden">
                     <div
-                      className={`w-full transition-all duration-300 rounded-t-xs ${
-                        isSelected
-                          ? "bg-white"
-                          : d.hasCount
-                            ? "bg-zinc-400 group-hover:bg-zinc-200"
-                            : "bg-zinc-800/40"
-                      }`}
+                      className={`w-full transition-all duration-300 rounded-t-xs ${isSelected
+                        ? "bg-white"
+                        : d.hasCount
+                          ? "bg-zinc-400 group-hover:bg-zinc-200"
+                          : "bg-zinc-800/40"
+                        }`}
                       style={{ height: d.height }}
                     />
                   </div>
 
                   {/* Scale Number (1 - 10) Below Bar */}
                   <span
-                    className={`text-[9px] sm:text-[10px] leading-none transition-colors ${
-                      isSelected
-                        ? "text-white font-bold"
-                        : d.hasCount
-                          ? "text-zinc-300 font-medium group-hover:text-white"
-                          : "text-zinc-600"
-                    }`}
+                    className={`text-[9px] sm:text-[10px] leading-none transition-colors ${isSelected
+                      ? "text-white font-bold"
+                      : d.hasCount
+                        ? "text-zinc-300 font-medium group-hover:text-white"
+                        : "text-zinc-600"
+                      }`}
                   >
                     {d.label}
                   </span>
@@ -174,25 +165,21 @@ export default function ReviewsTab({
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-medium text-zinc-300 border border-white/10 transition-colors cursor-pointer"
                 >
                   <span>
-                    {sortFilter === "newest"
-                      ? "Newest"
-                      : sortFilter === "highest"
-                        ? "Highest rated"
-                        : "Lowest rated"}
+                    {sortFilter === "highest"
+                      ? "Highest"
+                      : "Lowest"}
                   </span>
                   <ChevronDown
-                    className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${
-                      isSortOpen ? "rotate-180" : ""
-                    }`}
+                    className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${isSortOpen ? "rotate-180" : ""
+                      }`}
                   />
                 </button>
 
                 {isSortOpen && (
                   <div className="absolute left-0 mt-1.5 w-36 bg-[#181a20] rounded-xl shadow-2xl py-1 z-30 animate-in fade-in zoom-in-95 border border-white/10">
                     {[
-                      { label: "Newest", val: "newest" },
-                      { label: "Highest rated", val: "highest" },
-                      { label: "Lowest rated", val: "lowest" },
+                      { label: "Highest", val: "highest" as const },
+                      { label: "Lowest", val: "lowest" as const },
                     ].map((opt) => (
                       <button
                         key={opt.val}
@@ -201,7 +188,10 @@ export default function ReviewsTab({
                           setSortFilter(opt.val);
                           setIsSortOpen(false);
                         }}
-                        className="w-full text-left px-3.5 py-1.5 text-xs text-zinc-300 hover:bg-white/10 transition-colors cursor-pointer"
+                        className={`w-full text-left px-3.5 py-1.5 text-xs transition-colors cursor-pointer hover:bg-white/5 ${sortFilter === opt.val
+                          ? "text-emerald-400 font-semibold"
+                          : "text-zinc-300 hover:text-white"
+                          }`}
                       >
                         {opt.label}
                       </button>
@@ -284,7 +274,7 @@ export default function ReviewsTab({
                 <button
                   type="button"
                   onClick={handleLoadMore}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-semibold text-white border border-white/10 transition-all active:scale-95 cursor-pointer shadow-lg hover:text-emerald-400"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-custom1 text-white border border-white/10 transition-all active:scale-95 cursor-pointer shadow-lg hover:text-emerald-400"
                 >
                   <Plus className="w-4 h-4" />
                   <span>More</span>
@@ -293,7 +283,7 @@ export default function ReviewsTab({
                 <button
                   type="button"
                   onClick={() => setVisibleCount(6)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-semibold text-white border border-white/10 transition-all active:scale-95 cursor-pointer shadow-lg hover:text-emerald-400"
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#181a20] hover:bg-[#22252e] text-xs sm:text-sm font-custom1 text-white border border-white/10 transition-all active:scale-95 cursor-pointer shadow-lg hover:text-emerald-400"
                 >
                   <ChevronDown className="w-4 h-4 rotate-180" />
                   <span>Less</span>

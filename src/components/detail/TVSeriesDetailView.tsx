@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Play,
+  CirclePlay,
   Bookmark,
   Star,
   Share2,
@@ -18,10 +19,16 @@ import EpisodesTab from "./EpisodesTab";
 import ReviewsTab from "./ReviewsTab";
 import SimilarContentSection from "./SimilarContentSection";
 import TrailerModal from "./TrailerModal";
+import DetailSkeletonLoading from "./DetailSkeletonLoading";
 import {
   requestCheckWatchlistStatus,
   requestToggleWatchlist,
 } from "@/features/watchlist/api/watchlist.api";
+import { requestGetProgress } from "@/features/watch-history/api/watch-history.api";
+import {
+  getSavedProgress,
+  clearSavedProgress,
+} from "@/features/playback/service/watch-history.service";
 import { useAuthStore } from "@/store/auth.store";
 import { useAuthModalStore } from "@/store/auth-modal.store";
 import {
@@ -84,6 +91,72 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
     };
   }, [tv.id]);
 
+  const [hasWatched, setHasWatched] = useState<boolean>(false);
+  const [savedTarget, setSavedTarget] = useState<{ season: number; episode: number } | null>(null);
+  const [savedProgressSeconds, setSavedProgressSeconds] = useState<number>(0);
+  const [isCheckingProgress, setIsCheckingProgress] = useState<boolean>(true);
+
+  useEffect(() => {
+    setIsCheckingProgress(true);
+    let isMounted = true;
+    const tmdbId = parseInt(tv.id, 10);
+    if (isNaN(tmdbId)) {
+      setIsCheckingProgress(false);
+      return;
+    }
+
+    // Safety timeout to avoid hanging skeleton if network is stalled
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        setIsCheckingProgress(false);
+      }
+    }, 3000);
+
+    // Fast check from localStorage
+    const localProgress = getSavedProgress("tv", tv.id);
+    if (localProgress > 0) {
+      setHasWatched(true);
+      setSavedProgressSeconds(localProgress);
+    }
+
+    // Authoritative check from Supabase
+    requestGetProgress("tv", tmdbId)
+      .then((res) => {
+        if (isMounted) {
+          if (res.success && res.data && (res.data.progress_seconds > 0 || res.data.completed)) {
+            setHasWatched(true);
+            setSavedProgressSeconds(res.data.progress_seconds || 0);
+            if (res.data.season_number && res.data.episode_number) {
+              const targetEp = res.data.completed
+                ? res.data.episode_number + 1
+                : res.data.episode_number;
+              setSavedTarget({
+                season: res.data.season_number,
+                episode: targetEp,
+              });
+            }
+          } else if (res.success && !res.data) {
+            setHasWatched(false);
+            setSavedProgressSeconds(0);
+            setSavedTarget(null);
+            clearSavedProgress("tv", tv.id);
+          }
+        }
+      })
+      .catch(() => { })
+      .finally(() => {
+        if (isMounted) {
+          clearTimeout(timeoutId);
+          setIsCheckingProgress(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [tv.id]);
+
   const category = determineWatchCategory({
     tmdbId: String(tv.id),
     title: tv.title,
@@ -95,7 +168,22 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
   });
 
   const handleWatchNow = () => {
-    // Navigate to first episode of active season or season 1 episode 1
+    if (savedTarget) {
+      const saved =
+        savedProgressSeconds ||
+        getSavedProgress("tv", tv.id, savedTarget.season, savedTarget.episode);
+      const startQuery = saved > 0 ? `?start=${Math.floor(saved)}` : "";
+      router.push(
+        `${buildWatchUrl({
+          type: "tv",
+          tmdbId: tv.id,
+          category,
+          season: savedTarget.season,
+          episode: savedTarget.episode,
+        })}${startQuery}`
+      );
+      return;
+    }
     const firstEp = tv.episodes[0];
     const epNum = firstEp?.episodeNumber || 1;
     router.push(buildWatchUrl({ type: "tv", tmdbId: tv.id, category, episode: epNum }));
@@ -163,6 +251,10 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
   };
 
 
+
+  if (isCheckingProgress) {
+    return <DetailSkeletonLoading />;
+  }
 
   return (
     <div
@@ -286,7 +378,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 pt-1 w-full">
               {/* Left Action Buttons (Row 1 on mobile: Watch Now & Add Watchlist) */}
               <div className="flex items-center gap-2.5 sm:gap-3 w-full md:w-auto">
-                {/* Watch Now Button (Hidden for upcoming / unreleased TV series) */}
+                {/* Watch Now / Continue Button */}
                 {!(
                   tv.isUpcoming ??
                   (Boolean(tv.releaseDate && tv.releaseDate > new Date().toISOString().split("T")[0]) ||
@@ -302,8 +394,17 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
                       onClick={handleWatchNow}
                       className="flex-1 sm:flex-initial h-11 sm:h-12 min-w-[140px] sm:min-w-[160px] inline-flex items-center justify-center gap-2 px-6 sm:px-8 rounded-xl bg-[#2ca566] hover:bg-emerald-500 active:scale-95 text-white font-custom1 text-sm sm:text-base font-bold tracking-wide transition-all shadow-lg shadow-emerald-950/40 cursor-pointer"
                     >
-                      <Play className="w-4 h-4 fill-white shrink-0" />
-                      <span>Watch Now</span>
+                      {hasWatched ? (
+                        <>
+                          <CirclePlay className="w-4 sm:w-5 h-4 sm:h-5 fill-white/20 stroke-[2.2] shrink-0" />
+                          <span>Continue</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 fill-white shrink-0" />
+                          <span>Play Now</span>
+                        </>
+                      )}
                     </button>
                   )}
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -8,12 +8,12 @@ import {
   Tv,
   Star,
   ChevronDown,
-  Check,
   Plus,
   Minus,
   Loader2,
   AlertCircle,
   RotateCcw,
+  Search,
 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { BrowseItem, GenreOption, CountryOption } from "@/domain/movie/movie.types";
@@ -129,6 +129,10 @@ export default function BrowseSection() {
   const [isGenreOpen, setIsGenreOpen] = useState<boolean>(false);
   const [isSortOpen, setIsSortOpen] = useState<boolean>(false);
 
+  // Search filter query states
+  const [countrySearch, setCountrySearch] = useState<string>("");
+  const [genreSearch, setGenreSearch] = useState<string>("");
+
   const countryDropdownRef = useRef<HTMLDivElement>(null);
   const genreDropdownRef = useRef<HTMLDivElement>(null);
   const sortDropdownRef = useRef<HTMLDivElement>(null);
@@ -141,12 +145,14 @@ export default function BrowseSection() {
         !countryDropdownRef.current.contains(event.target as Node)
       ) {
         setIsCountryOpen(false);
+        setCountrySearch("");
       }
       if (
         genreDropdownRef.current &&
         !genreDropdownRef.current.contains(event.target as Node)
       ) {
         setIsGenreOpen(false);
+        setGenreSearch("");
       }
       if (
         sortDropdownRef.current &&
@@ -313,7 +319,54 @@ export default function BrowseSection() {
     setSelectedCountry("all");
     setSelectedGenre("all");
     setSelectedSort("all");
+    setCountrySearch("");
+    setGenreSearch("");
   };
+
+  // Filtered countries based on search
+  const filteredCountries = useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return countries;
+    return countries.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        c.code.toLowerCase().includes(q)
+    );
+  }, [countries, countrySearch]);
+
+  const showAllCountriesOption = useMemo(() => {
+    const q = countrySearch.trim().toLowerCase();
+    if (!q) return true;
+    return "all countries".includes(q) || "all".includes(q);
+  }, [countrySearch]);
+
+  // Filtered genres based on search
+  const filteredGenres = useMemo(() => {
+    const q = genreSearch.trim().toLowerCase();
+    if (!q) return genres;
+    return genres.filter((g) => g.name.toLowerCase().includes(q));
+  }, [genres, genreSearch]);
+
+  const showAllGenresOption = useMemo(() => {
+    const q = genreSearch.trim().toLowerCase();
+    if (!q) return true;
+    return "all genres".includes(q) || "all".includes(q);
+  }, [genreSearch]);
+
+  // Displayed items sorted alphabetically if A-Z or Z-A is active
+  const displayedItems = useMemo(() => {
+    if (selectedSort === "title-asc") {
+      return [...items].sort((a, b) =>
+        a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true })
+      );
+    }
+    if (selectedSort === "title-desc") {
+      return [...items].sort((a, b) =>
+        b.title.localeCompare(a.title, undefined, { sensitivity: "base", numeric: true })
+      );
+    }
+    return items;
+  }, [items, selectedSort]);
 
   const selectedCountryLabel =
     selectedCountry === "all"
@@ -390,10 +443,11 @@ export default function BrowseSection() {
               type="button"
               onClick={() => {
                 setIsCountryOpen(!isCountryOpen);
+                setCountrySearch("");
                 setIsGenreOpen(false);
                 setIsSortOpen(false);
               }}
-              className="font-custom1 inline-flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#141720] hover:bg-[#1c212d] border border-white/10 text-xs sm:text-sm font-medium text-white shadow-md transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#141720] hover:bg-[#1c212d] border border-white/10 text-xs sm:text-sm font-medium text-white shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <span
                 className="truncate max-w-[130px] sm:max-w-[160px] lg:max-w-[190px]"
@@ -409,26 +463,58 @@ export default function BrowseSection() {
             </button>
 
             {isCountryOpen && (
-              <div className="absolute left-0 top-full mt-2 w-[285px] sm:w-[295px] max-w-[calc(100vw-32px)] bg-[#12151d] border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                <div className="max-h-64 overflow-y-auto custom-scrollbar pr-1 py-0.5 space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedCountry("all");
-                      setIsCountryOpen(false);
-                    }}
-                    className={`font-custom1 w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
-                      selectedCountry === "all"
-                        ? "bg-white/10 text-white font-semibold"
-                        : "text-zinc-300 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <span>All Countries</span>
-                    {selectedCountry === "all" && (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <div className="absolute left-0 top-full mt-2 w-[285px] sm:w-[295px] max-w-[calc(100vw-32px)] bg-[#12151d] border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                {/* Search Country Input */}
+                <div className="p-1 border-b border-white/10 mb-1">
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={countrySearch}
+                      onChange={(e) => setCountrySearch(e.target.value)}
+                      placeholder="Search country..."
+                      className="w-full bg-[#181d2a] text-xs text-white placeholder-zinc-500 rounded-lg pl-8 pr-7 py-1.5 border border-white/10 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                    {countrySearch && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCountrySearch("");
+                        }}
+                        className="absolute right-2 text-zinc-400 hover:text-white text-xs cursor-pointer p-0.5"
+                        aria-label="Clear country search"
+                      >
+                        ✕
+                      </button>
                     )}
-                  </button>
-                  {countries.map((c) => {
+                  </div>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto custom-scrollbar pr-1 py-0.5 space-y-0.5">
+                  {showAllCountriesOption && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCountry("all");
+                        setIsCountryOpen(false);
+                        setCountrySearch("");
+                      }}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
+                        selectedCountry === "all"
+                          ? "bg-white/10 text-white font-semibold"
+                          : "text-zinc-300 hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      <span>All Countries</span>
+                      {selectedCountry === "all" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 ml-2" />
+                      )}
+                    </button>
+                  )}
+                  {filteredCountries.map((c) => {
                     const isSelected = selectedCountry === c.code;
                     return (
                       <button
@@ -437,9 +523,10 @@ export default function BrowseSection() {
                         onClick={() => {
                           setSelectedCountry(c.code);
                           setIsCountryOpen(false);
+                          setCountrySearch("");
                         }}
                         title={c.name}
-                        className={`font-custom1 w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
+                        className={`w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${
                           isSelected
                             ? "bg-white/10 text-white font-semibold"
                             : "text-zinc-300 hover:text-white hover:bg-white/5"
@@ -447,11 +534,16 @@ export default function BrowseSection() {
                       >
                         <span className="truncate pr-2">{c.name}</span>
                         {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0 ml-2" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 ml-2" />
                         )}
                       </button>
                     );
                   })}
+                  {!showAllCountriesOption && filteredCountries.length === 0 && (
+                    <div className="py-4 text-center text-xs text-zinc-500">
+                      No country found
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -463,10 +555,11 @@ export default function BrowseSection() {
               type="button"
               onClick={() => {
                 setIsGenreOpen(!isGenreOpen);
+                setGenreSearch("");
                 setIsCountryOpen(false);
                 setIsSortOpen(false);
               }}
-              className="font-custom1 inline-flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#141720] hover:bg-[#1c212d] border border-white/10 text-xs sm:text-sm font-medium text-white shadow-md transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#141720] hover:bg-[#1c212d] border border-white/10 text-xs sm:text-sm font-medium text-white shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <span className="truncate max-w-[110px] sm:max-w-[130px]">
                 {selectedGenreLabel}
@@ -478,25 +571,57 @@ export default function BrowseSection() {
             </button>
 
             {isGenreOpen && (
-              <div className="absolute right-0 top-full mt-2 w-52 max-w-[calc(100vw-32px)] bg-[#12151d] border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
-                <div className="max-h-60 overflow-y-auto custom-scrollbar pr-1 py-0.5 space-y-0.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedGenre("all");
-                      setIsGenreOpen(false);
-                    }}
-                    className={`font-custom1 w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${selectedGenre === "all"
-                        ? "bg-white/10 text-white font-semibold"
-                        : "text-zinc-300 hover:text-white hover:bg-white/5"
-                      }`}
-                  >
-                    <span>All Genres</span>
-                    {selectedGenre === "all" && (
-                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+              <div className="absolute right-0 top-full mt-2 w-56 sm:w-60 max-w-[calc(100vw-32px)] bg-[#12151d] border border-white/10 rounded-xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 flex flex-col">
+                {/* Search Genre Input */}
+                <div className="p-1 border-b border-white/10 mb-1">
+                  <div className="relative flex items-center">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={genreSearch}
+                      onChange={(e) => setGenreSearch(e.target.value)}
+                      placeholder="Search genre..."
+                      className="w-full bg-[#181d2a] text-xs text-white placeholder-zinc-500 rounded-lg pl-8 pr-7 py-1.5 border border-white/10 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
+                      autoFocus
+                    />
+                    {genreSearch && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setGenreSearch("");
+                        }}
+                        className="absolute right-2 text-zinc-400 hover:text-white text-xs cursor-pointer p-0.5"
+                        aria-label="Clear genre search"
+                      >
+                        ✕
+                      </button>
                     )}
-                  </button>
-                  {genres.map((g) => {
+                  </div>
+                </div>
+
+                <div className="max-h-60 overflow-y-auto custom-scrollbar pr-1 py-0.5 space-y-0.5">
+                  {showAllGenresOption && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedGenre("all");
+                        setIsGenreOpen(false);
+                        setGenreSearch("");
+                      }}
+                      className={`w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${selectedGenre === "all"
+                          ? "bg-white/10 text-white font-semibold"
+                          : "text-zinc-300 hover:text-white hover:bg-white/5"
+                        }`}
+                    >
+                      <span>All Genres</span>
+                      {selectedGenre === "all" && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 ml-2" />
+                      )}
+                    </button>
+                  )}
+                  {filteredGenres.map((g) => {
                     const isSelected = selectedGenre === String(g.id);
                     return (
                       <button
@@ -505,19 +630,25 @@ export default function BrowseSection() {
                         onClick={() => {
                           setSelectedGenre(String(g.id));
                           setIsGenreOpen(false);
+                          setGenreSearch("");
                         }}
-                        className={`font-custom1 w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${isSelected
+                        className={`w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${isSelected
                             ? "bg-white/10 text-white font-semibold"
                             : "text-zinc-300 hover:text-white hover:bg-white/5"
                           }`}
                       >
                         <span>{g.name}</span>
                         {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 ml-2" />
                         )}
                       </button>
                     );
                   })}
+                  {!showAllGenresOption && filteredGenres.length === 0 && (
+                    <div className="py-4 text-center text-xs text-zinc-500">
+                      No genre found
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -532,7 +663,7 @@ export default function BrowseSection() {
                 setIsCountryOpen(false);
                 setIsGenreOpen(false);
               }}
-              className="font-custom1 inline-flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#141720] hover:bg-[#1c212d] border border-white/10 text-xs sm:text-sm font-medium text-white shadow-md transition-all active:scale-95 cursor-pointer"
+              className="inline-flex items-center justify-between gap-2 px-3.5 py-2 rounded-xl bg-[#141720] hover:bg-[#1c212d] border border-white/10 text-xs sm:text-sm font-medium text-white shadow-md transition-all active:scale-95 cursor-pointer"
             >
               <span>{selectedSortLabel}</span>
               <ChevronDown
@@ -554,14 +685,14 @@ export default function BrowseSection() {
                           setSelectedSort(opt.value);
                           setIsSortOpen(false);
                         }}
-                        className={`font-custom1 w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${isSelected
+                        className={`w-full text-left px-3 py-1.5 rounded-lg text-xs sm:text-sm flex items-center justify-between transition-colors cursor-pointer ${isSelected
                             ? "bg-white/10 text-white font-semibold"
                             : "text-zinc-300 hover:text-white hover:bg-white/5"
                           }`}
                       >
                         <span>{opt.label}</span>
                         {isSelected && (
-                          <Check className="w-3.5 h-3.5 text-white shrink-0" />
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 ml-2" />
                         )}
                       </button>
                     );
@@ -639,7 +770,7 @@ export default function BrowseSection() {
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-5 lg:gap-6 pt-6">
-            {items.map((item, index) => {
+            {displayedItems.map((item, index) => {
               const href =
                 item.type === "TV Series"
                   ? `/tv/${item.id}`
@@ -648,6 +779,10 @@ export default function BrowseSection() {
                 item.genres && item.genres.length > 0
                   ? item.genres[0]
                   : item.type;
+              const remainingGenres =
+                item.genres && item.genres.length > 1
+                  ? item.genres.length - 1
+                  : 0;
 
               return (
                 <Link
@@ -670,7 +805,7 @@ export default function BrowseSection() {
                   {/* TV Season Badge (Top Left) */}
                   {item.type === "TV Series" && (
                     <div className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-semibold text-zinc-300 shadow-md">
-                      {item.season || "S1"}
+                      {item.season ? (item.season.endsWith("S") ? item.season : `${item.season}S`) : "1S"}
                     </div>
                   )}
 
@@ -688,13 +823,14 @@ export default function BrowseSection() {
                         {item.rating}
                       </span>
                       <span className="text-zinc-500">•</span>
-                      <span className="truncate max-w-[80px]">
+                      <span className="truncate max-w-[85px]">
                         {primaryGenre}
+                        {remainingGenres > 0 && ` +${remainingGenres}`}
                       </span>
                       <span className="text-zinc-500">•</span>
                       <span className="truncate">
                         {item.type === "TV Series"
-                          ? item.season || "Series"
+                          ? (item.season ? (item.season.endsWith("S") ? item.season : `${item.season}S`) : "Series")
                           : "Movie"}
                       </span>
                     </div>

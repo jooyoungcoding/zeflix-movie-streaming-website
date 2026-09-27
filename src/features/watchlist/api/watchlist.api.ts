@@ -59,6 +59,22 @@ export const requestDeleteWatchlistById = async (
   return await response.json();
 };
 
+export const requestClearAllWatchlist = async (): Promise<{ success: boolean }> => {
+  const response = await fetch("/api/watchlist?all=true", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to clear watchlist (${response.status})`);
+  }
+
+  return await response.json();
+};
+
 export const requestCheckWatchlistStatus = async (
   tmdbId: number,
   type: "movie" | "tv"
