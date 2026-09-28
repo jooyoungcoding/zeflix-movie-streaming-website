@@ -122,7 +122,7 @@ export default function MovieDetailView({ movie }: MovieDetailViewProps) {
         if (isMounted) {
           if (res.success && res.data && (res.data.progress_seconds > 0 || res.data.completed)) {
             setHasWatched(true);
-            setSavedProgressSeconds(res.data.progress_seconds || 0);
+            setSavedProgressSeconds(res.data.completed ? 0 : res.data.progress_seconds || 0);
           } else if (res.success && !res.data) {
             setHasWatched(false);
             setSavedProgressSeconds(0);

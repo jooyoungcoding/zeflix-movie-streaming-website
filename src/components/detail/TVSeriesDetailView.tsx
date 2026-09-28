@@ -27,6 +27,7 @@ import {
 import { requestGetProgress } from "@/features/watch-history/api/watch-history.api";
 import {
   getSavedProgress,
+  getLatestSavedTvProgress,
   clearSavedProgress,
 } from "@/features/playback/service/watch-history.service";
 import { useAuthStore } from "@/store/auth.store";
@@ -113,27 +114,87 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
     }, 3000);
 
     // Fast check from localStorage
-    const localProgress = getSavedProgress("tv", tv.id);
-    if (localProgress > 0) {
+    const local = getLatestSavedTvProgress(tv.id);
+    if (local) {
       setHasWatched(true);
-      setSavedProgressSeconds(localProgress);
+      if (local.completed) {
+        setSavedTarget({ season: local.season, episode: local.episode + 1 });
+        setSavedProgressSeconds(0);
+      } else if (local.progress_seconds > 0) {
+        setSavedTarget({ season: local.season, episode: local.episode });
+        setSavedProgressSeconds(local.progress_seconds);
+      }
+    } else {
+      const localProgress = getSavedProgress("tv", tv.id);
+      if (localProgress > 0) {
+        setHasWatched(true);
+        setSavedProgressSeconds(localProgress);
+      }
     }
 
     // Authoritative check from Supabase
     requestGetProgress("tv", tmdbId)
       .then((res) => {
         if (isMounted) {
-          if (res.success && res.data && (res.data.progress_seconds > 0 || res.data.completed)) {
+          if (
+            res.success &&
+            res.data &&
+            (res.data.progress_seconds > 0 ||
+              res.data.completed ||
+              res.data.episode_completed)
+          ) {
             setHasWatched(true);
-            setSavedProgressSeconds(res.data.progress_seconds || 0);
-            if (res.data.season_number && res.data.episode_number) {
-              const targetEp = res.data.completed
-                ? res.data.episode_number + 1
-                : res.data.episode_number;
+
+            const s = res.data.season_number || 1;
+            const ep = res.data.episode_number || 1;
+            const isEpisodeCompleted = Boolean(res.data.episode_completed);
+            const isSeriesCompleted = Boolean(res.data.completed);
+
+            if (isEpisodeCompleted && !isSeriesCompleted) {
+              // Current episode was completed and series is not finished -> route to next episode
+              let nextS = res.data.next_season_number;
+              let nextEp = res.data.next_episode_number;
+
+              if (!nextS || !nextEp) {
+                // Fallback using tv metadata if server did not precalculate next episode
+                const currentSeasonMeta = tv.seasons?.find((sn) => sn.seasonNumber === s);
+                if (currentSeasonMeta && ep < currentSeasonMeta.episodeCount) {
+                  nextS = s;
+                  nextEp = ep + 1;
+                } else if (tv.seasons && tv.seasons.length > 0) {
+                  const nextSeasonMeta = tv.seasons
+                    .filter((sn) => sn.seasonNumber > s && sn.episodeCount > 0)
+                    .sort((a, b) => a.seasonNumber - b.seasonNumber)[0];
+                  if (nextSeasonMeta) {
+                    nextS = nextSeasonMeta.seasonNumber;
+                    nextEp = 1;
+                  }
+                }
+                if (!nextEp) {
+                  nextS = s;
+                  nextEp = ep + 1;
+                }
+              }
+
               setSavedTarget({
-                season: res.data.season_number,
-                episode: targetEp,
+                season: nextS || 1,
+                episode: nextEp || 1,
               });
+              setSavedProgressSeconds(0);
+            } else if (isSeriesCompleted) {
+              // User completed the entire series
+              setSavedTarget({
+                season: s,
+                episode: ep,
+              });
+              setSavedProgressSeconds(0);
+            } else {
+              // Currently in progress on this episode
+              setSavedTarget({
+                season: s,
+                episode: ep,
+              });
+              setSavedProgressSeconds(res.data.progress_seconds || 0);
             }
           } else if (res.success && !res.data) {
             setHasWatched(false);
@@ -155,7 +216,7 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [tv.id]);
+  }, [tv.id, tv.seasons]);
 
   const category = determineWatchCategory({
     tmdbId: String(tv.id),
@@ -186,7 +247,16 @@ export default function TVSeriesDetailView({ tv }: TVSeriesDetailViewProps) {
     }
     const firstEp = tv.episodes[0];
     const epNum = firstEp?.episodeNumber || 1;
-    router.push(buildWatchUrl({ type: "tv", tmdbId: tv.id, category, episode: epNum }));
+    const seasonNum = firstEp?.seasonNumber || 1;
+    router.push(
+      buildWatchUrl({
+        type: "tv",
+        tmdbId: tv.id,
+        category,
+        season: seasonNum,
+        episode: epNum,
+      })
+    );
   };
 
   const toggleWatchlist = async () => {
