@@ -74,11 +74,8 @@ export function buildWatchUrl(params: BuildWatchUrlParams): string {
   }
 
   const ep = Math.max(1, Math.floor(params.episode || 1));
-  const s = params.season !== undefined ? Math.floor(params.season) : 1;
-  if (s > 1) {
-    return `/watch/tv/${category}/${cleanId}/${s}/${ep}`;
-  }
-  return `/watch/tv/${category}/${cleanId}/${ep}`;
+  const s = params.season !== undefined ? Math.max(1, Math.floor(params.season)) : 1;
+  return `/watch/tv/${category}/${cleanId}/${s}/${ep}`;
 }
 
 /**
@@ -93,8 +90,5 @@ export function buildNextEpisodeUrl(
   const cleanId = String(tmdbId || "").trim();
   const s = Math.max(1, Math.floor(season || 1));
   const ep = Math.max(1, Math.floor(nextEpisode || 1));
-  if (s > 1) {
-    return `/watch/tv/${category}/${cleanId}/${s}/${ep}`;
-  }
-  return `/watch/tv/${category}/${cleanId}/${ep}`;
+  return `/watch/tv/${category}/${cleanId}/${s}/${ep}`;
 }

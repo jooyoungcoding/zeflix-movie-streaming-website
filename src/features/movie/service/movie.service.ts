@@ -639,6 +639,33 @@ const FEATURED_CATEGORIES: FeaturedCategoryConfig[] = [
     tvGenreId: 80,
     preferredType: "TV Series",
   },
+  {
+    genreName: "Music",
+    tag: "#1 in Music",
+    movieGenreId: 10402,
+    preferredType: "Movie",
+  },
+  {
+    genreName: "Family",
+    tag: "#1 in Family",
+    movieGenreId: 10751,
+    tvGenreId: 10751,
+    preferredType: "Movie",
+  },
+  {
+    genreName: "Thriller",
+    tag: "#1 in Thriller",
+    movieGenreId: 53,
+    tvGenreId: 9648,
+    preferredType: "Movie",
+  },
+  {
+    genreName: "Fantasy",
+    tag: "#1 in Fantasy",
+    movieGenreId: 14,
+    tvGenreId: 10765,
+    preferredType: "Movie",
+  },
 ];
 
 /**

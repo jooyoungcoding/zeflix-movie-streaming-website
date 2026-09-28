@@ -96,8 +96,11 @@ export interface WatchProgressDto {
   progress_seconds: number;
   duration_seconds: number | null;
   completed: boolean;
+  episode_completed?: boolean;
   season_number?: number;
   episode_number?: number;
+  next_season_number?: number;
+  next_episode_number?: number;
 }
 
 export interface WatchProgressResponse {

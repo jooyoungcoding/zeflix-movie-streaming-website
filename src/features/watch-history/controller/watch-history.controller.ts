@@ -81,12 +81,19 @@ export const getProgressController = async (
 
   // TV episode: if season & episode specified, get specific episode progress
   if (input.season_number && input.episode_number) {
-    return await getEpisodeProgressService(
+    const epProgress = await getEpisodeProgressService(
       userId,
       input.tmdb_id,
       input.season_number,
       input.episode_number
     );
+    if (!epProgress) return null;
+    return {
+      ...epProgress,
+      season_number: input.season_number,
+      episode_number: input.episode_number,
+      episode_completed: epProgress.completed,
+    };
   }
 
   // Otherwise, get latest watched episode progress for this TV show
@@ -98,8 +105,11 @@ export const getProgressController = async (
     progress_seconds: match.progress_seconds,
     duration_seconds: match.duration_seconds,
     completed: match.completed,
+    episode_completed: match.episode_completed,
     season_number: match.season_number,
     episode_number: match.episode_number,
+    next_season_number: match.next_season_number,
+    next_episode_number: match.next_episode_number,
   };
 };
 
