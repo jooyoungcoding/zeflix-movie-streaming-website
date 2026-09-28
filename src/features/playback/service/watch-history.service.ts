@@ -60,6 +60,54 @@ export function getSavedProgress(
   }
 }
 
+export interface LatestTvProgressData {
+  season: number;
+  episode: number;
+  progress_seconds: number;
+  duration_seconds: number;
+  completed: boolean;
+  last_watched_at: string;
+}
+
+/**
+ * Scan localStorage to find the most recently watched TV episode for a show
+ */
+export function getLatestSavedTvProgress(tmdbId: string | number): LatestTvProgressData | null {
+  if (typeof window === "undefined" || !tmdbId) return null;
+  try {
+    const prefix = `${STORAGE_PREFIX}tv_${tmdbId}_s`;
+    let latest: LatestTvProgressData | null = null;
+    let latestTime = 0;
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(prefix)) {
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        const data = JSON.parse(raw) as WatchProgressData;
+        const time = data.last_watched_at ? new Date(data.last_watched_at).getTime() : 0;
+        if (time >= latestTime) {
+          latestTime = time;
+          latest = {
+            season: data.season || 1,
+            episode: data.episode || 1,
+            progress_seconds: data.progress_seconds || 0,
+            duration_seconds: data.duration_seconds || 0,
+            completed: Boolean(
+              data.completed ||
+              (data.duration_seconds > 0 && data.duration_seconds - data.progress_seconds <= 180)
+            ),
+            last_watched_at: data.last_watched_at,
+          };
+        }
+      }
+    }
+    return latest;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Persist current playback progress in seconds
  */

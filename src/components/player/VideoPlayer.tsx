@@ -266,7 +266,6 @@ export default function VideoPlayer({
   const [isFullscreenTopBarVisible, setIsFullscreenTopBarVisible] = useState<boolean>(true);
   const [isWakeSensorActive, setIsWakeSensorActive] = useState<boolean>(false);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const isMouseOverTopBarRef = useRef<boolean>(false);
 
   // Refs
   const containerRef = useRef<HTMLDivElement>(null);
@@ -463,8 +462,8 @@ export default function VideoPlayer({
     const tmdbIdNum = parseInt(effectiveTmdbId, 10);
     if (isNaN(tmdbIdNum) || tmdbIdNum <= 0) return;
 
-    const s = currentSeason ?? season ?? 1;
-    const ep = currentEpisode ?? episode ?? 1;
+    const s = activeSeasonRef.current ?? currentSeason ?? season ?? 1;
+    const ep = activeEpisodeRef.current ?? currentEpisode ?? episode ?? 1;
 
     requestGetProgress(
       type,
@@ -579,16 +578,12 @@ export default function VideoPlayer({
       controlsTimeoutRef.current = null;
     }
 
-    // Auto-hide controls after 3.5s of inactivity, unless mouse is hovering over top bar
-    if (!isMouseOverTopBarRef.current) {
-      controlsTimeoutRef.current = setTimeout(() => {
-        if (isMouseOverTopBarRef.current) return;
-        // Hide controls — sensor (z-[999998]) becomes pointer-events-auto to catch next movement
-        setIsFullscreenTopBarVisible(false);
-        setIsWakeSensorActive(true);
-        try { window.focus(); } catch { }
-      }, 3500);
-    }
+    // Auto-hide controls after 3s of inactivity
+    controlsTimeoutRef.current = setTimeout(() => {
+      setIsFullscreenTopBarVisible(false);
+      setIsWakeSensorActive(true);
+      try { window.focus(); } catch { }
+    }, 3000);
   }, []);
 
   /**
@@ -1224,6 +1219,11 @@ export default function VideoPlayer({
     async (newSeason: number, newEpisode: number) => {
       if (!effectiveTmdbId) return;
 
+      // Blur clicked button to prevent active focus outline
+      if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+
       // Clear any pending seek debounce before switching episode
       if (seekDebounceTimerRef.current) {
         clearTimeout(seekDebounceTimerRef.current);
@@ -1436,29 +1436,15 @@ export default function VideoPlayer({
 
             {/* Fullscreen Floating Top Bar: Title, Next Episode & Exit Fullscreen - Auto-hides on inactivity */}
             <div
-              onMouseEnter={() => {
-                isMouseOverTopBarRef.current = true;
-                if (controlsTimeoutRef.current) {
-                  clearTimeout(controlsTimeoutRef.current);
-                  controlsTimeoutRef.current = null;
-                }
-                setIsFullscreenTopBarVisible(true);
-                setIsWakeSensorActive(false);
-              }}
-              onMouseLeave={() => {
-                isMouseOverTopBarRef.current = false;
-                showFullscreenControls();
-              }}
-              onTouchStart={() => {
-                showFullscreenControls();
-              }}
-              className={`fixed top-0 inset-x-0 z-[999999] p-4 sm:p-6 bg-gradient-to-b from-black/90 via-black/40 to-transparent flex items-center justify-between transition-all duration-300 ease-in-out ${
+              onMouseMove={showFullscreenControls}
+              onTouchStart={showFullscreenControls}
+              className={`fixed top-0 inset-x-0 z-[999999] p-4 sm:p-6 bg-transparent flex items-center justify-between transition-all duration-300 ease-in-out ${
                 isFullscreenTopBarVisible
                   ? "opacity-100 pointer-events-auto translate-y-0"
                   : "opacity-0 pointer-events-none -translate-y-2"
               }`}
             >
-              <span className="text-white font-bold text-sm sm:text-base tracking-wide drop-shadow-md truncate max-w-xs sm:max-w-md md:max-w-lg">
+              <span className="text-white font-bold text-sm sm:text-base tracking-wide truncate max-w-xs sm:max-w-md md:max-w-lg">
                 {formattedMediaInfoText}
               </span>
 
@@ -1467,21 +1453,21 @@ export default function VideoPlayer({
                   <button
                     type="button"
                     onClick={() => switchToEpisode(nextTarget.season, nextTarget.episode)}
-                    className="group/next inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-lg active:scale-95 border border-sky-400/30"
+                    className="group/next inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] sm:text-xs font-semibold transition-all cursor-pointer active:scale-95 border border-sky-400/30"
                     title={`Next S${nextTarget.season} E${nextTarget.displayEpisode}`}
                   >
                     <span>S{nextTarget.season} E{nextTarget.displayEpisode}</span>
-                    <SkipForward className="w-3.5 h-3.5 fill-current transition-transform group-hover/next:translate-x-0.5" />
+                    <SkipForward className="w-3 h-3 fill-current transition-transform group-hover/next:translate-x-0.5" />
                   </button>
                 )}
 
                 <button
                   type="button"
                   onClick={toggleFullscreen}
-                  className="inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-semibold backdrop-blur-md transition cursor-pointer active:scale-95"
+                  className="inline-flex items-center justify-center p-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white backdrop-blur-md transition cursor-pointer active:scale-95"
                   title="Exit Fullscreen (Esc / F)"
                 >
-                  <Minimize className="w-4 h-4 text-white" />
+                  <Minimize className="w-3.5 h-3.5 text-white" />
                 </button>
               </div>
             </div>
