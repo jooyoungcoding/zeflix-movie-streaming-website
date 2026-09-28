@@ -138,12 +138,7 @@ export default function WatchlistPage() {
                                         className="object-cover group-hover:scale-105 transition-transform duration-500"
                                     />
 
-                                    {/* TV Season Badge */}
-                                    {type === "tv" && (
-                                        <div className="absolute top-2.5 left-2.5 z-10 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[11px] font-semibold text-zinc-300 shadow-md">
-                                            {content.season ? (content.season.endsWith("S") ? content.season : `${content.season}S`) : "1S"}
-                                        </div>
-                                    )}
+
 
                                     {/* Gradient overlay */}
                                     <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none" />
