@@ -1454,9 +1454,9 @@ export default function VideoPlayer({
                     type="button"
                     onClick={() => switchToEpisode(nextTarget.season, nextTarget.episode)}
                     className="group/next inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-[11px] sm:text-xs font-semibold transition-all cursor-pointer active:scale-95 border border-sky-400/30"
-                    title={`Next S${nextTarget.season} E${nextTarget.displayEpisode}`}
+                    title={`Next S${nextTarget.season} E${nextTarget.episode}`}
                   >
-                    <span>S{nextTarget.season} E{nextTarget.displayEpisode}</span>
+                    <span>S{nextTarget.season} E{nextTarget.episode}</span>
                     <SkipForward className="w-3 h-3 fill-current transition-transform group-hover/next:translate-x-0.5" />
                   </button>
                 )}
