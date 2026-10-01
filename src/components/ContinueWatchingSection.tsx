@@ -135,7 +135,7 @@ function ContinueWatchingCard({
   const watchedTime = formatWatchedTime(item.progress_seconds);
   const continueUrl = buildContinueUrl(item);
 
-  const epNumber = tv?.display_episode_number || tv?.episode_number;
+  const epNumber = tv?.episode_number ?? tv?.display_episode_number;
   const seasonEpLabel = tv
     ? `S${tv.season_number} E${epNumber}`
     : null;

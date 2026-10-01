@@ -369,23 +369,22 @@ export default function EpisodesTab({
     isDragging.current = false;
   };
 
-  // Compute episode display range e.g. "1-9 episodes"
-  const episodeRangeText =
-    episodes.length > 0
-      ? `${episodes[0].displayEpisodeNumber}-${
-          episodes[episodes.length - 1].displayEpisodeNumber
-        } episodes`
-      : "Episodes";
-
+  // Compute total episode count according to TMDB for the selected season
   const currentSeasonObj =
-    seasons.find((s) => s.seasonNumber === selectedSeason) || seasons[0];
+    seasons.find((s) => Number(s.seasonNumber) === Number(selectedSeason)) || seasons[0];
+
+  const totalEpisodes = currentSeasonObj?.episodeCount || episodes.length;
+  const episodeCountText =
+    totalEpisodes > 0
+      ? `${totalEpisodes} ${totalEpisodes === 1 ? "Episode" : "Episodes"}`
+      : "Episodes";
 
   return (
     <div className="w-full space-y-5">
-      {/* Header Row: Episode Range on Left, Season Selector Dropdown on Right */}
+      {/* Header Row: Total Episodes on Left, Season Selector Dropdown on Right */}
       <div className="flex items-center justify-between relative z-40">
         <h3 className="text-xl sm:text-2xl font-bold text-white tracking-wide font-custom2">
-          {episodeRangeText}
+          {episodeCountText}
         </h3>
 
         {/* Season Selector Dropdown */}
@@ -402,7 +401,7 @@ export default function EpisodesTab({
 
             {isDropdownOpen && (
               <div
-                className="absolute right-0 mt-2 w-44 bg-[#191d26] border border-white/10 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20"
+                className="absolute right-0 mt-2 w-48 bg-[#191d26] border border-white/10 rounded-xl shadow-2xl py-1.5 z-50 animate-in fade-in zoom-in-95 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10 hover:scrollbar-thumb-white/20"
                 style={{ maxHeight: "calc(6 * 36px + 12px)" }}
               >
                 {seasons.map((s) => (
@@ -411,14 +410,14 @@ export default function EpisodesTab({
                     type="button"
                     onClick={() => handleSelectSeason(s.seasonNumber)}
                     className={`w-full text-left px-4 py-2 text-xs sm:text-sm transition-colors cursor-pointer flex items-center justify-between hover:bg-white/5 ${
-                      s.seasonNumber === selectedSeason
+                      Number(s.seasonNumber) === Number(selectedSeason)
                         ? "text-emerald-400 font-bold"
                         : "text-zinc-300 hover:text-white"
                     }`}
                   >
-                    <span>{s.name}</span>
+                    <span className="truncate pr-2">{s.name}</span>
                     {s.episodeCount > 0 && (
-                      <span className="text-[11px] text-zinc-500">
+                      <span className="text-[11px] text-zinc-500 shrink-0">
                         {s.episodeCount} eps
                       </span>
                     )}
@@ -475,7 +474,7 @@ export default function EpisodesTab({
               </div>
               <div className="space-y-1 max-w-sm">
                 <h4 className="text-white text-sm sm:text-base font-bold">
-                  Failed to load Season {selectedSeason} episodes
+                  Failed to load {currentSeasonObj?.name || `Season ${selectedSeason}`} episodes
                 </h4>
                 <p className="text-zinc-400 text-xs sm:text-[13px] leading-relaxed">
                   {errorMessage || "The provider or network took too long to respond. Please try again."}
@@ -493,7 +492,7 @@ export default function EpisodesTab({
           ) : episodes.length === 0 ? (
             <div className="py-10 px-4 text-center bg-[#12151c]/40 border border-white/5 rounded-2xl flex flex-col items-center justify-center gap-3 my-1">
               <p className="text-zinc-400 text-sm">
-                No episodes available for Season {selectedSeason}.
+                No episodes available for {currentSeasonObj?.name || `Season ${selectedSeason}`}.
               </p>
               <button
                 type="button"
@@ -519,7 +518,7 @@ export default function EpisodesTab({
 
                 return (
                   <div
-                    key={ep.id || ep.displayEpisodeNumber}
+                    key={ep.id || `${ep.seasonNumber || selectedSeason}-${ep.episodeNumber}`}
                     onClick={() => {
                       if (hasMoved.current) return;
                       handleWatchEpisode(ep);
@@ -535,7 +534,7 @@ export default function EpisodesTab({
                     {ep.still ? (
                       <Image
                         src={ep.still}
-                        alt={ep.title}
+                        alt={ep.title || `Episode ${ep.episodeNumber}`}
                         fill
                         className="object-cover transition-transform duration-500 group-hover/card:scale-105"
                         sizes="(max-width: 640px) 280px, 310px"
@@ -565,18 +564,18 @@ export default function EpisodesTab({
                               isActive ? "text-emerald-400" : "text-white"
                             }`}
                           >
-                            Episode {ep.displayEpisodeNumber}
+                            Episode {ep.episodeNumber}
                           </h4>
                         </div>
                         {ep.runtime && (
-                          <span className="text-xs font-semibold text-gray bg-gray px-2.5 py-0.5 rounded-lg border border-gray-500/30 shrink-0">
+                          <span className="text-xs font-semibold text-zinc-300 bg-zinc-800/80 px-2.5 py-0.5 rounded-lg border border-white/10 shrink-0">
                             {ep.runtime}
                           </span>
                         )}
                       </div>
 
                       <p className="text-zinc-300/80 text-xs sm:text-[13px] leading-relaxed line-clamp-2">
-                        {ep.overview || ep.title || "The chapter storyline stream..."}
+                        {ep.overview || "No overview available for this episode."}
                       </p>
                     </div>
                   </div>
