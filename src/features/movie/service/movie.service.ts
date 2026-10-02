@@ -73,6 +73,35 @@ export function formatDuration(runtimeMinutes?: number | null): string {
 }
 
 /**
+ * Parse human-readable duration (e.g. "2h 10m", "45m", "130m") or minutes number into seconds.
+ */
+export function parseDurationToSeconds(
+  duration?: string | number | null
+): number | undefined {
+  if (!duration) return undefined;
+  if (typeof duration === "number") return duration > 0 ? Math.floor(duration * 60) : undefined;
+
+  let totalMinutes = 0;
+  const hoursMatch = duration.match(/(\d+)\s*h/i);
+  const minutesMatch = duration.match(/(\d+)\s*m/i);
+
+  if (hoursMatch) {
+    totalMinutes += parseInt(hoursMatch[1], 10) * 60;
+  }
+  if (minutesMatch) {
+    totalMinutes += parseInt(minutesMatch[1], 10);
+  }
+  if (!hoursMatch && !minutesMatch) {
+    const rawNum = parseInt(duration, 10);
+    if (!isNaN(rawNum) && rawNum > 0) {
+      totalMinutes = rawNum;
+    }
+  }
+
+  return totalMinutes > 0 ? totalMinutes * 60 : undefined;
+}
+
+/**
  * Extracts certification for a Movie (e.g. "PG-13", "R", "PG")
  */
 export function extractMovieCertification(details: TMDBMovieDetails): string {
@@ -1248,6 +1277,7 @@ export const getMovieDetailService = async (
       rating,
       year,
       duration,
+      runtime: details.runtime ?? null,
       certificate,
       genres,
       description,

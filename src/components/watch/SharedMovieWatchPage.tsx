@@ -1,7 +1,10 @@
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { Film } from "lucide-react";
-import { getMovieDetailService } from "@/features/movie/service/movie.service";
+import {
+  getMovieDetailService,
+  parseDurationToSeconds,
+} from "@/features/movie/service/movie.service";
 import { defaultPlaybackService } from "@/features/playback/service/playback.service";
 import {
   determineWatchCategory,
@@ -63,6 +66,10 @@ export default async function SharedMovieWatchPage({
     }
   );
 
+  const expectedDuration =
+    (movie.runtime && movie.runtime > 0 ? movie.runtime * 60 : undefined) ||
+    parseDurationToSeconds(movie.duration);
+
   return (
     <div className="bg-black text-white pt-16 sm:pt-20 pb-8">
       {/* Main Watch Content Container */}
@@ -98,12 +105,14 @@ export default async function SharedMovieWatchPage({
               : 2024
           }
           poster={movie.backdrop || movie.poster}
+          expectedDuration={expectedDuration}
           historyMeta={{
             posterPath: movie.poster,
             backdropPath: movie.backdrop,
             releaseDate: movie.releaseDate || movie.year || null,
             voteAverage: movie.rating ? parseFloat(movie.rating) : undefined,
             overview: movie.description || null,
+            episodeRuntime: expectedDuration ? Math.floor(expectedDuration / 60) : undefined,
           }}
         />
       </div>

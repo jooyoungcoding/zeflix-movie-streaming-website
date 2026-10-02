@@ -3,8 +3,8 @@ import { PlaybackSource } from "../types/playback.types";
 
 /**
  * SuperEmbed Provider
- * Fallback provider for normal movies and TV shows.
- * Activated only when the primary provider (VidLink) fails or is unavailable.
+ * @deprecated Fully removed from active routing per user request.
+ * Fallback provider disabled — all playback routes exclusively through VidLink.
  */
 export class SuperEmbedProvider implements PlaybackProvider {
   readonly id = "superembed";

@@ -123,6 +123,7 @@ export interface MovieDetail {
   rating: string;
   year: string;
   duration: string;
+  runtime?: number | null;
   certificate: string;
   genres: string[];
   description: string;

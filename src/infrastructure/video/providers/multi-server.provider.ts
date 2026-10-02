@@ -2,7 +2,7 @@ import { VideoProvider, VideoSource, VideoServerOption } from "../video.types";
 
 /**
  * MultiServerProvider (Deprecated)
- * Provided for backward compatibility. Uses VidLink (primary) and SuperEmbed (fallback).
+ * Provided for backward compatibility. Uses VidLink.
  */
 export class MultiServerProvider implements VideoProvider {
   readonly name = "ZeflixMultiServer";
@@ -17,14 +17,9 @@ export class MultiServerProvider implements VideoProvider {
     const servers: VideoServerOption[] = [
       {
         id: "server-vidlink",
-        name: "VidLink (Primary)",
+        name: "VidLink",
         url: `https://vidlink.pro/movie/${cleanId}?primaryColor=0096FF&secondaryColor=12151c&iconColor=ffffff&autoplay=false`,
         isDefault: true,
-      },
-      {
-        id: "server-superembed",
-        name: "SuperEmbed (Fallback)",
-        url: `https://multiembed.mov/?video_id=${cleanId}&tmdb=1`,
       },
     ];
 
@@ -53,14 +48,9 @@ export class MultiServerProvider implements VideoProvider {
     const servers: VideoServerOption[] = [
       {
         id: "server-vidlink",
-        name: "VidLink (Primary)",
+        name: "VidLink",
         url: `https://vidlink.pro/tv/${cleanId}/${s}/${ep}?primaryColor=0096FF&secondaryColor=12151c&iconColor=ffffff&autoplay=false&nextbutton=false`,
         isDefault: true,
-      },
-      {
-        id: "server-superembed",
-        name: "SuperEmbed (Fallback)",
-        url: `https://multiembed.mov/?video_id=${cleanId}&s=${s}&e=${ep}&tmdb=1`,
       },
     ];
 
