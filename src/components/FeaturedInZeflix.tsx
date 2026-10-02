@@ -158,14 +158,14 @@ export default function FeaturedInZeflix() {
             <div className="h-4 w-44 bg-zinc-800/60 rounded-md" />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-start mt-auto">
-            <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between lg:h-[336px] lg:pt-2">
+            <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between lg:h-[365px] lg:-mt-10">
               <div className="flex flex-col space-y-2 sm:space-y-2.5">
                 <div className="h-6 w-32 bg-zinc-800/80 rounded-full" />
                 <div className="h-10 w-3/4 bg-zinc-800/80 rounded-lg" />
                 <div className="h-5 w-1/2 bg-zinc-800/60 rounded-md" />
                 <div className="h-20 w-full max-w-2xl bg-zinc-800/40 rounded-lg" />
               </div>
-              <div className="flex gap-4 pt-4 lg:pt-0 lg:mb-3">
+              <div className="flex gap-4 pt-4 lg:pt-0 lg:mb-1">
                 <div className="h-12 w-36 bg-zinc-800/80 rounded-xl" />
                 <div className="h-12 w-36 bg-zinc-800/60 rounded-xl" />
               </div>
@@ -248,7 +248,7 @@ export default function FeaturedInZeflix() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-start mt-auto">
           {/* Item Info (Appears Below Carousel on Mobile/Tablet via order-2) */}
-          <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between lg:h-[336px] lg:pt-2">
+          <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between lg:h-[365px] lg:-mt-10">
             {/* Top text block */}
             <div className="flex flex-col items-start space-y-2 sm:space-y-2.5">
               {/* Tag Badge */}
@@ -326,7 +326,7 @@ export default function FeaturedInZeflix() {
             </div>
 
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex sm:items-center sm:gap-4 pt-4 lg:pt-0 lg:mb-3">
+            <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex sm:items-center sm:gap-4 pt-4 lg:pt-0 lg:mb-1">
               {/* Watch Now Button */}
               <Link
                 href={watchHref}
