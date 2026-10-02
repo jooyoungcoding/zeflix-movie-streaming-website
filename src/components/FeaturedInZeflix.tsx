@@ -151,24 +151,26 @@ export default function FeaturedInZeflix() {
   // Loading skeleton state
   if (isLoading) {
     return (
-      <section className="w-full relative min-h-[580px] sm:min-h-[620px] lg:min-h-[660px] overflow-hidden border-none my-4 sm:my-8 flex flex-col justify-between animate-pulse">
-        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 lg:pt-10 pb-10 sm:pb-14 flex flex-col flex-1 justify-between">
-          <div className="mb-6 sm:mb-8 lg:mb-10">
+      <section className="w-full relative min-h-[560px] sm:min-h-[600px] lg:min-h-[650px] overflow-hidden border-none my-4 sm:my-8 flex flex-col justify-between animate-pulse">
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 lg:pt-8 pb-8 sm:pb-10 lg:pb-12 flex flex-col flex-1 justify-between">
+          <div className="mb-6 sm:mb-8">
             <div className="h-8 w-60 bg-zinc-800/80 rounded-md mb-2" />
             <div className="h-4 w-44 bg-zinc-800/60 rounded-md" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-center">
-            <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col space-y-4">
-              <div className="h-6 w-32 bg-zinc-800/80 rounded-full" />
-              <div className="h-10 w-3/4 bg-zinc-800/80 rounded-lg" />
-              <div className="h-5 w-1/2 bg-zinc-800/60 rounded-md" />
-              <div className="h-16 w-full max-w-2xl bg-zinc-800/40 rounded-lg" />
-              <div className="flex gap-4 pt-2">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-start mt-auto">
+            <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between lg:h-[336px] lg:pt-2">
+              <div className="flex flex-col space-y-2 sm:space-y-2.5">
+                <div className="h-6 w-32 bg-zinc-800/80 rounded-full" />
+                <div className="h-10 w-3/4 bg-zinc-800/80 rounded-lg" />
+                <div className="h-5 w-1/2 bg-zinc-800/60 rounded-md" />
+                <div className="h-20 w-full max-w-2xl bg-zinc-800/40 rounded-lg" />
+              </div>
+              <div className="flex gap-4 pt-4 lg:pt-0 lg:mb-3">
                 <div className="h-12 w-36 bg-zinc-800/80 rounded-xl" />
                 <div className="h-12 w-36 bg-zinc-800/60 rounded-xl" />
               </div>
             </div>
-            <div className="order-1 lg:order-2 lg:col-span-5 flex gap-3 overflow-hidden">
+            <div className="order-1 lg:order-2 lg:col-span-5 flex items-start justify-start lg:justify-end gap-3 overflow-hidden">
               <div className="w-[145px] sm:w-[185px] lg:w-[208px] aspect-[2/3] bg-zinc-800/80 rounded-2xl shrink-0" />
               <div className="w-[145px] sm:w-[185px] lg:w-[208px] aspect-[2/3] bg-zinc-800/40 rounded-2xl shrink-0" />
             </div>
@@ -206,7 +208,7 @@ export default function FeaturedInZeflix() {
   const remainingGenres = Math.max((currentItem.genres?.length || 0) - 1, 0);
 
   return (
-    <section className="w-full relative min-h-[580px] sm:min-h-[620px] lg:min-h-[660px] overflow-hidden border-none my-4 sm:my-8 flex flex-col justify-between">
+    <section className="w-full relative min-h-[560px] sm:min-h-[600px] lg:min-h-[650px] overflow-hidden border-none my-4 sm:my-8 flex flex-col justify-between">
       {/* Full-Screen Dynamic Background Backdrop */}
       <div className="absolute inset-0 z-0 pointer-events-none">
         {currentItem.backdrop ? (
@@ -233,9 +235,9 @@ export default function FeaturedInZeflix() {
       </div>
 
       {/* Content Layout Container */}
-      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-8 lg:pt-10 pb-10 sm:pb-14 flex flex-col flex-1 justify-between">
+      <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 sm:pt-7 lg:pt-8 pb-8 sm:pb-10 lg:pb-12 flex flex-col flex-1 justify-between">
         {/* Top Section Header */}
-        <div className="mb-6 sm:mb-8 lg:mb-10">
+        <div className="mb-6 sm:mb-8">
           <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-wide font-custom2">
             Best Pick for your watching
           </h2>
@@ -244,84 +246,87 @@ export default function FeaturedInZeflix() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 lg:gap-10 items-start mt-auto">
           {/* Item Info (Appears Below Carousel on Mobile/Tablet via order-2) */}
-          <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col items-start space-y-3.5 sm:space-y-4 lg:space-y-5">
-            {/* Tag Badge */}
-            {currentItem.tag && (
-              <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/90 text-xs font-semibold tracking-wide">
-                <span>{currentItem.tag}</span>
+          <div className="order-2 lg:order-1 lg:col-span-7 flex flex-col justify-between lg:h-[336px] lg:pt-2">
+            {/* Top text block */}
+            <div className="flex flex-col items-start space-y-2 sm:space-y-2.5">
+              {/* Tag Badge */}
+              {currentItem.tag && (
+                <div className="inline-flex items-center px-3.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/90 text-xs sm:text-sm font-semibold tracking-wide">
+                  <span>{currentItem.tag}</span>
+                </div>
+              )}
+
+              {/* Title */}
+              <h3
+                key={`title-${currentItem.id}`}
+                className="text-2xl sm:text-3xl lg:text-4xl xl:text-5xl font-black text-white tracking-tight leading-tight line-clamp-2 animate-hero-title min-h-[2rem] sm:min-h-[2.5rem] lg:min-h-[2.85rem]"
+              >
+                {currentItem.title}
+              </h3>
+
+              {/* Metadata Row */}
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs sm:text-sm lg:text-[15px] font-medium text-zinc-300">
+                {/* Star Rating */}
+                <div className="flex items-center gap-1.5 text-amber-400 font-bold">
+                  <Star className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-amber-400" />
+                  <span>{currentItem.rating}</span>
+                </div>
+
+                {/* Type: Movie or TV Series */}
+                <span className="text-zinc-500">•</span>
+                <span className="text-zinc-300">{currentItem.type}</span>
+
+                {/* Duration if available */}
+                {currentItem.duration && (
+                  <>
+                    <span className="text-zinc-500">•</span>
+                    <span>{currentItem.duration}</span>
+                  </>
+                )}
+
+                {/* Year if available */}
+                {currentItem.year && (
+                  <>
+                    <span className="text-zinc-500">•</span>
+                    <span>{currentItem.year}</span>
+                  </>
+                )}
+
+                {/* Genres with UI "+N" formatting */}
+                {firstGenre && (
+                  <>
+                    <span className="text-zinc-500">•</span>
+                    <span className="text-emerald-400 font-medium">
+                      {firstGenre}
+                      {remainingGenres > 0 && ` +${remainingGenres}`}
+                    </span>
+                  </>
+                )}
+
+                {/* Certificate badge if available */}
+                {currentItem.certificate && (
+                  <>
+                    <span className="text-zinc-500">•</span>
+                    <span className="px-1.5 py-0.5 rounded bg-white/10 text-zinc-300 text-xs font-semibold">
+                      {currentItem.certificate}
+                    </span>
+                  </>
+                )}
               </div>
-            )}
 
-            {/* Title */}
-            <h3
-              key={`title-${currentItem.id}`}
-              className="text-2xl sm:text-3xl lg:text-5xl font-black text-white tracking-tight leading-tight animate-hero-title"
-            >
-              {currentItem.title}
-            </h3>
-
-            {/* Metadata Row */}
-            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs sm:text-sm font-medium text-zinc-300">
-              {/* Star Rating */}
-              <div className="flex items-center gap-1 text-amber-400 font-bold">
-                <Star className="w-4 h-4 fill-amber-400" />
-                <span>{currentItem.rating}</span>
-              </div>
-
-              {/* Type: Movie or TV Series */}
-              <span className="text-zinc-500">•</span>
-              <span className="text-zinc-300">{currentItem.type}</span>
-
-              {/* Duration if available */}
-              {currentItem.duration && (
-                <>
-                  <span className="text-zinc-500">•</span>
-                  <span>{currentItem.duration}</span>
-                </>
-              )}
-
-              {/* Year if available */}
-              {currentItem.year && (
-                <>
-                  <span className="text-zinc-500">•</span>
-                  <span>{currentItem.year}</span>
-                </>
-              )}
-
-              {/* Genres with UI "+N" formatting */}
-              {firstGenre && (
-                <>
-                  <span className="text-zinc-500">•</span>
-                  <span className="text-emerald-400 font-medium">
-                    {firstGenre}
-                    {remainingGenres > 0 && ` +${remainingGenres}`}
-                  </span>
-                </>
-              )}
-
-              {/* Certificate badge if available */}
-              {currentItem.certificate && (
-                <>
-                  <span className="text-zinc-500">•</span>
-                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-zinc-300 text-[11px] font-semibold">
-                    {currentItem.certificate}
-                  </span>
-                </>
-              )}
+              {/* Description */}
+              <p
+                key={`desc-${currentItem.id}`}
+                className="text-zinc-300/90 text-sm sm:text-base leading-relaxed line-clamp-4 max-w-2xl animate-hero-desc h-[5.5rem] sm:h-[6.4rem] overflow-hidden"
+              >
+                {currentItem.description}
+              </p>
             </div>
 
-            {/* Description */}
-            <p
-              key={`desc-${currentItem.id}`}
-              className="text-zinc-300/90 text-xs sm:text-sm lg:text-base leading-relaxed line-clamp-3 sm:line-clamp-4 max-w-2xl animate-hero-desc"
-            >
-              {currentItem.description}
-            </p>
-
             {/* Action Buttons */}
-            <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex sm:items-center sm:gap-4 pt-1 sm:pt-2">
+            <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex sm:items-center sm:gap-4 pt-4 lg:pt-0 lg:mb-3">
               {/* Watch Now Button */}
               <Link
                 href={watchHref}
@@ -353,7 +358,7 @@ export default function FeaturedInZeflix() {
           </div>
 
           {/* Posters Carousel */}
-          <div className="order-1 lg:order-2 lg:col-span-5 relative flex items-center justify-start lg:justify-end py-1 w-full overflow-hidden">
+          <div className="order-1 lg:order-2 lg:col-span-5 relative flex items-start justify-start lg:justify-end w-full overflow-hidden">
             {/* Carousel Viewport without dark shadow mask */}
             <div
               className="relative w-full sm:w-[410px] lg:w-[450px] [--card-w:145px] [--card-gap:12px] sm:[--card-w:185px] sm:[--card-gap:16px] lg:[--card-w:208px] lg:[--card-gap:20px] overflow-hidden py-3 px-1.5 transition-all duration-300"

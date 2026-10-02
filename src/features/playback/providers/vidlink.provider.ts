@@ -22,7 +22,7 @@ export class VidLinkProvider implements PlaybackProvider {
     const cleanId = this.sanitizeTmdbId(tmdbId);
     if (!cleanId) return null;
 
-    // Timeline played portion must be #0096FF per Zeflix player specs
+    // Timeline played portion must be #0096FF per Zeflix player specs.
     const query = new URLSearchParams({
       primaryColor: "0096FF",
       secondaryColor: "12151c",
@@ -56,7 +56,7 @@ export class VidLinkProvider implements PlaybackProvider {
     const s = Math.max(1, Math.floor(seasonNumber));
     const ep = Math.max(1, Math.floor(episodeNumber));
 
-    // Timeline played portion must be #0096FF per Zeflix player specs
+    // Timeline played portion must be #0096FF per Zeflix player specs.
     const query = new URLSearchParams({
       primaryColor: "0096FF",
       secondaryColor: "12151c",

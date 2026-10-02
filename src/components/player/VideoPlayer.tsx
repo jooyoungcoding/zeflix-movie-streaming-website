@@ -85,6 +85,7 @@ interface VideoPlayerProps {
     episodeAirDate?: string | null;
     episodeRuntime?: number | null;
   };
+  expectedDuration?: number;
 }
 
 type PlaybackLifecycle =
@@ -132,6 +133,7 @@ export default function VideoPlayer({
   seasons,
   episodes,
   historyMeta,
+  expectedDuration,
 }: VideoPlayerProps) {
   // Auth state — used to determine if Supabase history should be persisted
   const userId = useAuthStore((s) => s.user_id);
@@ -211,7 +213,7 @@ export default function VideoPlayer({
         const sp = new URLSearchParams(window.location.search);
         urlStart = parseInt(sp.get("start") || sp.get("t") || "0", 10);
         if (isNaN(urlStart) || urlStart < 0) urlStart = 0;
-      } catch {}
+      } catch { }
     }
     const clean = (tmdbId || tvId || movieId || "").trim();
     if (!clean) {
@@ -231,7 +233,33 @@ export default function VideoPlayer({
     }
     return best;
   });
-  const [duration, setDuration] = useState<number>(0);
+
+  // Expected media duration (seconds) resolved from metadata or TMDB runtime
+  const effectiveExpectedDuration = useMemo(() => {
+    if (expectedDuration && expectedDuration > 0) return Math.floor(expectedDuration);
+    if (historyMeta?.episodeRuntime && historyMeta.episodeRuntime > 0) {
+      return Math.floor(historyMeta.episodeRuntime * 60);
+    }
+    return 0;
+  }, [expectedDuration, historyMeta]);
+
+  const [duration, setDuration] = useState<number>(() => {
+    if (effectiveExpectedDuration > 0) {
+      return effectiveExpectedDuration;
+    }
+    return 0;
+  });
+  const durationRef = useRef<number>(effectiveExpectedDuration || 0);
+
+  // Keep durationRef in sync with expected duration if embed has not reported yet or reported incomplete chunk
+  useEffect(() => {
+    if (effectiveExpectedDuration > 0) {
+      if (durationRef.current <= 0 || durationRef.current < effectiveExpectedDuration * 0.6) {
+        durationRef.current = effectiveExpectedDuration;
+        setDuration(effectiveExpectedDuration);
+      }
+    }
+  }, [effectiveExpectedDuration]);
 
   // Safety timeout: ensure initialResumePendingRef doesn't permanently block if embed doesn't seek
   useEffect(() => {
@@ -255,6 +283,8 @@ export default function VideoPlayer({
     setIframeSrc("about:blank");
     setPlaybackState("INIT");
     setCurrentTime(0);
+    setDuration(effectiveExpectedDuration || 0);
+    durationRef.current = effectiveExpectedDuration || 0;
     initialResumeTimeRef.current = 0;
     initialResumePendingRef.current = false;
   }
@@ -275,6 +305,7 @@ export default function VideoPlayer({
   const stallTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const playbackConfirmedRef = useRef<boolean>(false);
   const lastCurrentTimeRef = useRef<number>(0);
+  const vidlinkAutoReloadCountRef = useRef<number>(0);
 
   // If no session passed initially and no initialSource, dynamically fetch it asynchronously
   useEffect(() => {
@@ -323,7 +354,6 @@ export default function VideoPlayer({
   const supabaseSaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const seekDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef<number>(0);
-  const durationRef = useRef<number>(0);
   const activeSeasonRef = useRef<number>(activeSeason);
   const activeEpisodeRef = useRef<number>(activeEpisode);
   const nextTargetRef = useRef<{ season: number; episode: number } | null>(null);
@@ -341,7 +371,7 @@ export default function VideoPlayer({
     (forceCompleted?: boolean) => {
       if (!userId || !effectiveTmdbId) return;
       const ct = currentTimeRef.current;
-      const dur = durationRef.current;
+      const dur = durationRef.current || effectiveExpectedDuration || 0;
       if (ct <= 0 && !forceCompleted) return;
 
       const COMPLETION_THRESHOLD = 180;
@@ -503,7 +533,7 @@ export default function VideoPlayer({
     }).catch(() => {
       // Silently fail — localStorage fallback already loaded
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSource]);
 
   // localStorage cache: still save on every currentTime change (fast local cache)
@@ -633,32 +663,40 @@ export default function VideoPlayer({
       connectionTimeoutRef.current = null;
     }
 
-    // Providers that embed a webpage player but do NOT send postMessage events.
-    // For these, auto-confirm playback once the iframe has loaded successfully,
-    // after a short buffer for the player UI to initialize.
-    //
-    // Auto-confirm providers (webpage embeds, no postMessage):
-    //   - vidlink, superembed: main embed players
-    //   - tokufun, tokuaddon, tokustream: webpage-based Sentai embed players
-    //
-    // Requires postMessage confirmation:
-    //   - yenime: anime player that may send postMessage events
+    // Providers that embed a webpage player.
+    // For VidLink and webpage embeds, auto-confirm playback readiness once the iframe has loaded,
+    // so the loading overlay disappears and the user can see and interact with the player.
     const providerId = currentSource?.providerId || "";
-    const isAutoConfirmProvider =
-      providerId === "vidlink" ||
-      providerId === "superembed" ||
+
+    // 1. VidLink Provider:
+    // VidLink embeds an HTML5 player with Zeflix theme (#0096FF timeline).
+    // Once the iframe document has loaded, reveal the player after a brief 600ms buffer
+    // so the player interface is fully rendered and ready for user interaction.
+    // Full playback metrics and watch history will be continuously tracked via postMessage.
+    if (providerId === "vidlink") {
+      if (gracePeriodTimerRef.current) {
+        clearTimeout(gracePeriodTimerRef.current);
+      }
+      gracePeriodTimerRef.current = setTimeout(() => {
+        confirmPlayback();
+      }, 600);
+      return;
+    }
+
+    // 2. Webpage embed providers that do NOT send postMessage events (Toku, etc.):
+    const isOtherAutoConfirmProvider =
       providerId === "tokufun" ||
       providerId === "tokuaddon" ||
       providerId === "tokustream" ||
       (!providerId && !currentSource?.providerName);
 
-    if (isAutoConfirmProvider) {
+    if (isOtherAutoConfirmProvider) {
       // Short buffer for player UI to render before we mark playback as confirmed
       gracePeriodTimerRef.current = setTimeout(() => {
         if (!playbackConfirmedRef.current) {
           confirmPlayback();
         }
-      }, 3000);
+      }, 2000);
       return;
     }
 
@@ -679,6 +717,7 @@ export default function VideoPlayer({
   useEffect(() => {
     if (!currentSource) return;
 
+    vidlinkAutoReloadCountRef.current = 0;
     playbackConfirmedRef.current = false;
     lastCurrentTimeRef.current = 0;
 
@@ -766,12 +805,12 @@ export default function VideoPlayer({
         typeof rawData === "string"
           ? rawData
           : innerPayload?.event ||
-            innerPayload?.type ||
-            innerPayload?.action ||
-            rawData?.event ||
-            rawData?.type ||
-            rawData?.action ||
-            ""
+          innerPayload?.type ||
+          innerPayload?.action ||
+          rawData?.event ||
+          rawData?.type ||
+          rawData?.action ||
+          ""
       ).toLowerCase();
 
       // Show fullscreen controls ONLY for explicit user-interaction events.
@@ -843,24 +882,42 @@ export default function VideoPlayer({
         isExplicitSeek;
 
       if (isTimeUpdate) {
-        const cur =
+        const rawCur =
           innerPayload?.currentTime ??
           innerPayload?.current_time ??
           innerPayload?.time ??
-          innerPayload?.progress ??
+          innerPayload?.progress?.watched ??
+          (typeof innerPayload?.progress === "number" ? innerPayload?.progress : undefined) ??
           innerPayload?.data?.currentTime ??
           rawData?.currentTime ??
           rawData?.data?.currentTime ??
-          rawData?.progress ??
+          rawData?.progress?.watched ??
+          (typeof rawData?.progress === "number" ? rawData?.progress : undefined) ??
           rawData?.data?.progress;
 
-        const dur =
+        const cur =
+          typeof rawCur === "number"
+            ? rawCur
+            : typeof rawCur === "string" && !isNaN(Number(rawCur))
+            ? Number(rawCur)
+            : undefined;
+
+        const rawDur =
           innerPayload?.duration ??
           innerPayload?.totalDuration ??
           innerPayload?.total_duration ??
+          innerPayload?.progress?.duration ??
           innerPayload?.data?.duration ??
           rawData?.duration ??
+          rawData?.progress?.duration ??
           rawData?.data?.duration;
+
+        const dur =
+          typeof rawDur === "number"
+            ? rawDur
+            : typeof rawDur === "string" && !isNaN(Number(rawDur))
+            ? Number(rawDur)
+            : undefined;
 
         if (typeof cur === "number" && !isNaN(cur)) {
           // If we are waiting for player to seek to resume position, ignore early 0s updates
@@ -891,11 +948,17 @@ export default function VideoPlayer({
 
           // Immediate local cache update on seek or progress
           if (effectiveTmdbId) {
+            const currentKnown = durationRef.current || effectiveExpectedDuration || 0;
+            const validDur =
+              (dur && dur > currentKnown * 0.6 ? dur : 0) ||
+              currentKnown ||
+              0;
+
             savePlaybackProgress(
               type,
               effectiveTmdbId,
               cur,
-              dur || durationRef.current,
+              validDur,
               type === "tv" ? activeSeasonRef.current : undefined,
               type === "tv" ? activeEpisodeRef.current : undefined
             );
@@ -916,8 +979,19 @@ export default function VideoPlayer({
         }
 
         if (typeof dur === "number" && !isNaN(dur) && dur > 0) {
-          durationRef.current = dur;
-          setDuration(dur);
+          const currentKnown = durationRef.current || effectiveExpectedDuration || 0;
+          // Guard against HLS sliding window / chunk duration bug:
+          // If we already know the expected duration (e.g. 7800s for 2h10m),
+          // reject glitchy / partial HLS chunk manifests (e.g. 900s = 15m) that are < 60% of known duration.
+          const isSuspiciousChunk = currentKnown > 300 && dur < currentKnown * 0.6;
+
+          if (!isSuspiciousChunk) {
+            durationRef.current = dur;
+            setDuration(dur);
+          } else if (durationRef.current <= 0) {
+            durationRef.current = dur;
+            setDuration(dur);
+          }
         }
       }
 
@@ -1240,6 +1314,7 @@ export default function VideoPlayer({
       setPlaybackState("PLAYER_LOADING");
       setCurrentTime(0);
       setDuration(0);
+      vidlinkAutoReloadCountRef.current = 0;
 
       // Show fullscreen controls immediately while the new episode loads.
       // This gives mobile users visual feedback that the switch happened
@@ -1258,8 +1333,8 @@ export default function VideoPlayer({
         (path.includes("/anime/")
           ? "anime"
           : path.includes("/sentai/")
-          ? "sentai"
-          : "normal");
+            ? "sentai"
+            : "normal");
       const newUrl = buildNextEpisodeUrl(
         effectiveCategory,
         effectiveTmdbId,
@@ -1296,6 +1371,7 @@ export default function VideoPlayer({
     setPlaybackState("PLAYER_LOADING");
     playbackConfirmedRef.current = false;
     lastCurrentTimeRef.current = 0;
+    vidlinkAutoReloadCountRef.current = 0;
 
     if (effectiveTmdbId) {
       try {
@@ -1424,11 +1500,10 @@ export default function VideoPlayer({
                 while controls are visible.
             */}
             <div
-              className={`fixed inset-0 z-[999998] transition-opacity duration-200 ${
-                !isFullscreenTopBarVisible
+              className={`fixed inset-0 z-[999998] transition-opacity duration-200 ${!isFullscreenTopBarVisible
                   ? "pointer-events-auto cursor-none bg-transparent"
                   : "pointer-events-none"
-              }`}
+                }`}
               onMouseMove={showFullscreenControls}
               onTouchStart={showFullscreenControls}
               onClick={showFullscreenControls}
@@ -1438,11 +1513,10 @@ export default function VideoPlayer({
             <div
               onMouseMove={showFullscreenControls}
               onTouchStart={showFullscreenControls}
-              className={`fixed top-0 inset-x-0 z-[999999] p-4 sm:p-6 bg-transparent flex items-center justify-between transition-all duration-300 ease-in-out ${
-                isFullscreenTopBarVisible
+              className={`fixed top-0 inset-x-0 z-[999999] p-4 sm:p-6 bg-transparent flex items-center justify-between transition-all duration-300 ease-in-out ${isFullscreenTopBarVisible
                   ? "opacity-100 pointer-events-auto translate-y-0"
                   : "opacity-0 pointer-events-none -translate-y-2"
-              }`}
+                }`}
             >
               <span className="text-white font-bold text-sm sm:text-base tracking-wide truncate max-w-xs sm:max-w-md md:max-w-lg">
                 {formattedMediaInfoText}

@@ -1,7 +1,10 @@
 import React from "react";
 import { notFound, redirect } from "next/navigation";
 import { Tv } from "lucide-react";
-import { getTVSeriesDetailService } from "@/features/movie/service/movie.service";
+import {
+  getTVSeriesDetailService,
+  parseDurationToSeconds,
+} from "@/features/movie/service/movie.service";
 import { defaultPlaybackService } from "@/features/playback/service/playback.service";
 import {
   determineWatchCategory,
@@ -93,6 +96,7 @@ export default async function SharedTvWatchPage({
       e.seasonNumber === sNum &&
       (e.episodeNumber === effectiveEpNum || e.displayEpisodeNumber === epNum)
   );
+  const expectedDuration = parseDurationToSeconds(currentEp?.runtime);
 
   if (currentEpIndex !== -1 && currentEpIndex < tv.episodes.length - 1) {
     const nextEp = tv.episodes[currentEpIndex + 1];
@@ -177,6 +181,7 @@ export default async function SharedTvWatchPage({
           currentEpisode={effectiveEpNum}
           seasons={tv.seasons}
           episodes={tv.episodes}
+          expectedDuration={expectedDuration}
           historyMeta={{
             tvName: tv.title,
             tvPosterPath: tv.poster || null,
@@ -187,6 +192,7 @@ export default async function SharedTvWatchPage({
             episodeName: currentEp?.title || undefined,
             episodeStillPath: currentEp?.still || null,
             episodeAirDate: currentEp?.airDate || null,
+            episodeRuntime: expectedDuration ? Math.floor(expectedDuration / 60) : undefined,
           }}
         />
 

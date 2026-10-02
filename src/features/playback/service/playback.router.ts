@@ -1,6 +1,5 @@
 import { PlaybackProvider } from "../providers/playback-provider.interface";
 import { VidLinkProvider } from "../providers/vidlink.provider";
-import { SuperEmbedProvider } from "../providers/superembed.provider";
 import { YenimeProvider } from "../providers/yenime.provider";
 import {
   isSuperSentaiSeries,
@@ -28,16 +27,14 @@ export interface PlaybackRoutingContext {
  * Japanese Super Sentai Series:
  *   NOTE: Dedicated Toku sources (toku.fun, tokusub.net, tokustream.ovh) block iframe
  *   embedding via X-Frame-Options: sameorigin — cannot be bypassed client-side.
- *   Sentai content is served via VidLink → SuperEmbed fallback (TMDB ID supported).
+ *   Sentai content is served via VidLink (TMDB ID supported).
  *   1. VidLinkProvider (Primary — supports TMDB ID)
- *   2. SuperEmbedProvider (Fallback)
  *
  * Anime (Japanese Animation TV & Movies):
  *   ⚠️  YenimeProvider CURRENTLY DISABLED — all sources (megaplay.buzz, yenime.net) are
  *   failing: player script broken ("urlParams is not defined") or unavailable.
- *   Anime content falls back to VidLink → SuperEmbed until Yenime sources are restored.
+ *   Anime content is served via VidLink until Yenime sources are restored.
  *   1. VidLinkProvider (Primary)
- *   2. SuperEmbedProvider (Fallback)
  *
  *   ✅  HOW TO RE-ENABLE YenimeProvider:
  *     1. Verify megaplay.buzz or yenime.net sources are working
@@ -46,12 +43,10 @@ export interface PlaybackRoutingContext {
  *
  * Normal Movies & TV Series:
  *   1. VidLinkProvider (Primary)
- *   2. SuperEmbedProvider (Fallback)
  */
 export class PlaybackRouter {
   constructor(
     private readonly vidlinkProvider: PlaybackProvider = new VidLinkProvider(),
-    private readonly superembedProvider: PlaybackProvider = new SuperEmbedProvider(),
     private readonly yenimeProvider: PlaybackProvider = new YenimeProvider()
   ) {}
 
@@ -98,33 +93,33 @@ export class PlaybackRouter {
     // 1. Explicit Category Resolution
 
     // Sentai: Toku-specific sources block X-Frame-Options iframes.
-    // Route through VidLink → SuperEmbed which support TMDB ID natively.
+    // Route through VidLink which supports TMDB ID natively.
     if (context.category === "sentai") {
-      return [this.vidlinkProvider, this.superembedProvider];
+      return [this.vidlinkProvider];
     }
 
     if (context.category === "anime") {
       // ⚠️ YenimeProvider disabled — sources unavailable (see class JSDoc above)
-      // return [this.yenimeProvider, this.vidlinkProvider, this.superembedProvider];
-      return [this.vidlinkProvider, this.superembedProvider];
+      // return [this.yenimeProvider, this.vidlinkProvider];
+      return [this.vidlinkProvider];
     }
 
     if (context.category === "normal") {
-      return [this.vidlinkProvider, this.superembedProvider];
+      return [this.vidlinkProvider];
     }
 
     // 2. Dynamic Fallback Detection
     if (this.isSuperSentai(context)) {
-      return [this.vidlinkProvider, this.superembedProvider];
+      return [this.vidlinkProvider];
     }
 
     if (this.isAnime(context)) {
       // ⚠️ YenimeProvider disabled — sources unavailable (see class JSDoc above)
-      // return [this.yenimeProvider, this.vidlinkProvider, this.superembedProvider];
-      return [this.vidlinkProvider, this.superembedProvider];
+      // return [this.yenimeProvider, this.vidlinkProvider];
+      return [this.vidlinkProvider];
     }
 
     // 3. Default Normal Movie / TV
-    return [this.vidlinkProvider, this.superembedProvider];
+    return [this.vidlinkProvider];
   }
 }

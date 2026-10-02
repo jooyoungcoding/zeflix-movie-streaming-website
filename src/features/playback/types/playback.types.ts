@@ -61,9 +61,9 @@ export interface PlaybackSession {
   mediaInfo: PlaybackMediaInfo;
   /**
    * Sources ordered by priority:
-   * - Anime: [YenimeProvider, VidLinkProvider, SuperEmbedProvider]
-   * - Japanese Super Sentai: [SuperSentaiProvider, VidLinkProvider, SuperEmbedProvider]
-   * - Normal Content: [VidLinkProvider, SuperEmbedProvider]
+   * - Anime: [YenimeProvider, VidLinkProvider]
+   * - Japanese Super Sentai: [VidLinkProvider]
+   * - Normal Content: [VidLinkProvider]
    */
   sources: PlaybackSource[];
 }
